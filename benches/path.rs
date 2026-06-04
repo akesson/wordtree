@@ -1,7 +1,8 @@
 mod data;
 
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
 use data::load;
+use std::hint::black_box;
 use wordtree::TreeFn;
 
 pub fn sv_word2path(c: &mut Criterion) {
