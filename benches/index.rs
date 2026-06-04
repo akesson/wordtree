@@ -25,5 +25,5 @@ pub fn en_word2index(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, en_word2index,);
+criterion_group!(benches, sv_word2index, en_word2index,);
 criterion_main!(benches);
