@@ -1,0 +1,29 @@
+[package]
+name = "comparisons"
+version = "0.0.0"
+edition.workspace = true
+publish = false
+description = "Reproducible comparative benchmarks of wordtree vs. alternative crates (not published)."
+
+[dependencies]
+boomphf = "0.6.0"
+csv = "1.4.0"
+fst = { version = "0.4.7", features = ["levenshtein"] }
+pruning_radix_trie = "1.0.1"
+rkyv = { version = "0.8.16", default-features = false, features = ["alloc", "pointer_width_64"] }
+serde = { version = "1.0.228", features = ["derive"] }
+strsim = "0.11.1"
+symspell = "0.5.2"
+wordtree = { path = ".." }
+zstd = "0.13.3"
+
+[dev-dependencies]
+criterion = { version = "0.8.2", features = ["html_reports"] }
+
+[[bench]]
+name = "lookup"
+harness = false
+
+[[bench]]
+name = "suggestions"
+harness = false

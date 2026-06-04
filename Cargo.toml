@@ -58,7 +58,7 @@ harness = false
 name = "generation"
 
 [workspace]
-members = ["ego-tree"]
+members = ["ego-tree", "comparisons"]
 
 [workspace.package]
 edition = "2024"
