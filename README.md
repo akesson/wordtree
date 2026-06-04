@@ -165,28 +165,28 @@ This enables a state-based edit distance evaluation, removing any need for costl
 
 | lang | Index test                         | median (M4 Pro) |
 | ---- | ---------------------------------- | --------------- |
-| sv   | Index of (2 chars) ut              | 31.95 ns        |
-| sv   | Index of (14 chars) rekommendation | 55.97 ns        |
-| en   | Index of (2 chars) on              | 50.39 ns        |
-| en   | Index of (14 chars) alphanumerical | 87.26 ns        |
+| sv   | Index of (2 chars) ut              | 80.23 ns        |
+| sv   | Index of (14 chars) rekommendation | 104.06 ns       |
+| en   | Index of (2 chars) on              | 85.14 ns        |
+| en   | Index of (14 chars) alphanumerical | 123.42 ns       |
 
 ## Find path for word
 
 | lang | Path test                      | median (M4 Pro) |
 | ---- | ------------------------------ | --------------- |
-| sv   | Path (2 chars) ut              | 41.80 ns        |
-| sv   | Path (14 chars) rekommendation | 80.18 ns        |
-| en   | Path (2 chars) on              | 54.85 ns        |
-| en   | Path (14 chars) alphanumerical | 113.18 ns       |
+| sv   | Path (2 chars) ut              | 87.98 ns        |
+| sv   | Path (14 chars) rekommendation | 130.16 ns       |
+| en   | Path (2 chars) on              | 89.77 ns        |
+| en   | Path (14 chars) alphanumerical | 149.14 ns       |
 
 ## Suggestions
 
 | lang | Suggestions test                      | median (M4 Pro) |
 | ---- | ------------------------------------- | --------------- |
-| sv   | Suggestions (2 chars) u\_             | 160.00 us       |
-| sv   | Suggestions (14 chars) rekommendat_on | 362.16 us       |
-| en   | Suggestions (2 chars) o\_             | 725.12 us       |
-| en   | Suggestions (14 chars) alphanumeri_al | 1125.3 us       |
+| sv   | Suggestions (2 chars) u\_             | 379.68 us       |
+| sv   | Suggestions (14 chars) rekommendat_on | 810.71 us       |
+| en   | Suggestions (2 chars) o\_             | 939.16 us       |
+| en   | Suggestions (14 chars) alphanumeri_al | 1536.0 us       |
 
 ## Generation
 
@@ -194,69 +194,65 @@ Building the whole tree from the bundled TSV with `Tree::from_tsv`.
 
 | lang | Generation test | median (M4 Pro) |
 | ---- | --------------- | --------------- |
-| sv   | tree            | 145.17 ms       |
-| en   | tree            | 907.16 ms       |
+| sv   | tree            | 63.88 ms        |
+| en   | tree            | 384.31 ms       |
 
 # Information about the data
 
-> Like the benchmarks above, these statistics describe the original private
-> dataset, not the `benches/data/*.tsv.zst` files bundled here. The bundled
-> lists hold ~638k English and ~113k Swedish words (each mapping to a distinct
-> expression), so the node, expression and distribution counts below do not
-> match what this repo would produce.
+> Generated from the bundled `benches/data/*.tsv.zst` files by
+> `cargo run --release --example stats`. Re-run it to regenerate these figures
+> if the data changes.
 
 ## English
 
-| what              | result                 |
-| ----------------- | ---------------------- |
-| Node count        | avg: 0.9999, max: 161, |
-| Total nodes       | 1012273                |
-| Total exprs       | 299528                 |
-| max_rel_child_pos | 141076                 |
-| max_source_count  | 853                    |
+| what              | result             |
+| ----------------- | ------------------ |
+| Node count        | avg: 0.9999, max: 114 |
+| Total nodes       | 2313796            |
+| Total exprs       | 638545             |
+| max_rel_child_pos | 312175             |
+| max_source_count  | 1000               |
+| max depth         | 182                |
 
 <br>
 
 ### Node child count distribution
 
-first = 0, last = 49 and more.
+Index = child count; the last bucket (39) is "39 or more".
 
-[247882, 649483, 69053, 21656, 9174, 4719, 2777, 1812, 1258, 887, 693, 540, 458, 348, 267, 208, 209, 148, 131, 101, 85, 60, 50, 43, 40, 42, 30, 19, 28, 8, 13, 10, 3, 7, 2, 1, 0, 1, 1, 26]
+[536639, 1544069, 137393, 42752, 19027, 10111, 6180, 4034, 2769, 2052, 1541, 1214, 978, 822, 652, 539, 464, 374, 363, 316, 265, 225, 162, 137, 121, 85, 88, 77, 58, 32, 37, 29, 30, 18, 15, 13, 8, 16, 9, 82]
 
 <br>
 
 ### Expr source count distribution
 
-0: 0-9, 1: 10-19 etc...
+Bucket `i` covers source counts `i*10 .. i*10+9` (bucket 0 is dominated by the interior trie nodes, whose source count is 0).
 
-[216070, 28829, 12598, 7414, 5177, 3747, 3120, 2567, 2269, 2064, 1666, 1400, 1254, 1109, 974, 852, 758, 663, 598, 558, 508, 441, 380, 378, 278, 244, 260, 226, 222, 213, 198, 186, 174, 157, 127, 120, 122, 111, 104, 80, 67, 56, 111, 57, 64, 74, 57, 64, 49, 46, 50, 45, 46, 41, 30, 38, 25, 35, 25, 23, 23, 15, 18, 13, 19, 23, 18, 14, 24, 6, 14, 11, 15, 13, 23, 19, 8, 7, 6, 11, 3, 0, 0, 3, 0, 3, 0, 0, 0, 0]
+[1710172, 6373, 6367, 6360, 6371, 6354, 6374, 6333, 6338, 6361, 6287, 6272, 6354, 6327, 6291, 6272, 6348, 6364, 6254, 6247, 6237, 6366, 6371, 6298, 6189, 6159, 6264, 6347, 6356, 6334, 6117, 6087, 6164, 6329, 6340, 6327, 6257, 5946, 6012, 6273, 6270, 6276, 6236, 5686, 5889, 6111, 6119, 6096, 5541, 5448, 5653, 5655, 4777, 5245, 4869, 5687, 6355, 6322, 6306, 6317, 6250, 6261, 6219, 6196, 6174, 6081, 5893, 5101, 5489, 6322, 6316, 6295, 6242, 6164, 6046, 5460, 6010, 6289, 6197, 5594, 6211, 6196, 5792, 6245, 5882, 5963, 6073, 6034, 6049, 5981, 6067, 6046, 6043, 6122, 6021, 6088, 6067, 6092, 6071, 6103, 1]
 
 ## Swedish
 
-| what              | result               |
-| ----------------- | -------------------- |
-| Node count        | avg: 0.9999, max: 28 |
-| Total nodes       | 19903                |
-| Total exprs       | 4649                 |
-| max_rel_child_pos | 2444                 |
-| max_source_count  | 45                   |
+| what              | result            |
+| ----------------- | ----------------- |
+| Node count        | avg: 0.9996, max: 67 |
+| Total nodes       | 487354            |
+| Total exprs       | 113220            |
+| max_rel_child_pos | 62385             |
+| max_source_count  | 1000              |
+| max depth         | 85                |
 
 <br>
 
 ### Node child count distribution
 
-first = 0, last = 49 and more
+Index = child count; the last bucket (39) is "39 or more".
 
-[3739, 14297, 1234, 301, 114, 56, 49, 27, 21, 12, 15, 7, 3, 5, 4, 5, 3, 0, 2, 2, 1, 2, 1, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+[94984, 351914, 24406, 6907, 3014, 1656, 1039, 717, 539, 410, 333, 242, 190, 176, 142, 102, 113, 98, 83, 68, 43, 32, 29, 28, 14, 11, 14, 10, 7, 2, 4, 0, 1, 0, 2, 1, 2, 0, 0, 21]
 
 <br>
 
 ### Expr source count distribution
 
-0: 0-9, 1: 10-19 etc...
+Bucket `i` covers source counts `i*10 .. i*10+9` (bucket 0 is dominated by the interior trie nodes, whose source count is 0).
 
-[3836, 530, 202, 66, 15]
-
-Position corresponds to count.
-
-[0, 2216, 571, 308, 191, 115, 145, 102, 104, 84, 83, 74, 73, 51, 39, 50, 47, 45, 29, 39, 24, 20, 23, 41, 24, 19, 16, 12, 8, 15, 9, 7, 10, 11, 7, 3, 1, 8, 6, 4, 4, 0, 2, 1, 3, 5, 0, 0, 0, 0]
+[378463, 1139, 1139, 1138, 1139, 1138, 1136, 1136, 1139, 1135, 1138, 1135, 1137, 1136, 1136, 1133, 1136, 1140, 1135, 1129, 1136, 1134, 1139, 1125, 1125, 1130, 1122, 1136, 1139, 1137, 1121, 1105, 1126, 1114, 1135, 1138, 1139, 1108, 1095, 1114, 1115, 1136, 1138, 1138, 1120, 1083, 1077, 1118, 1133, 1137, 1132, 1080, 1061, 1107, 1134, 1135, 1112, 973, 1101, 1112, 1083, 920, 1047, 930, 933, 1137, 1133, 1123, 1116, 1112, 1108, 1093, 1094, 1079, 983, 988, 1128, 1115, 1110, 1081, 977, 1126, 1106, 989, 1109, 1102, 1065, 1058, 1104, 1073, 1075, 1058, 1077, 1050, 1056, 1068, 1046, 1033, 1081, 1070, 1]
