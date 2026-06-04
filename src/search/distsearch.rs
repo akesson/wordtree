@@ -1,9 +1,9 @@
+use super::Ledger;
 use super::ledger::KeepDecision::{
     AbsDistTooBig, CandidateDiscarded, MatchKept, NodeMatch as KeepNodeMatch, PercentileTooLow,
     WordKept,
 };
 use super::ledger::SearchDecision::{DoSearch, RelDistTooBig, SearchTermEnd};
-use super::Ledger;
 
 use super::{DistInfo, MaxArr, MaxVal, NodeRef, Suggestion, Term};
 use std::collections::VecDeque;

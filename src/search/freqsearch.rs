@@ -1,6 +1,6 @@
+use super::Ledger;
 use super::ledger::KeepDecision::{CandidateDiscarded, NotAWord, PercentileTooLow, WordKept};
 use super::ledger::SearchDecision::{DoSearch, MaxChildPercentileTooSmall, NoChildren};
-use super::Ledger;
 
 use super::{MaxArr, NodeRef, Suggestion};
 use std::collections::VecDeque;
