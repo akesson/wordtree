@@ -3,7 +3,7 @@ use super::ledger::KeepDecision::{
     WordKept,
 };
 use super::ledger::SearchDecision::{DoSearch, RelDistTooBig, SearchTermEnd};
-use super::{Ledger, LedgerLine};
+use super::Ledger;
 
 use super::{DistInfo, MaxArr, MaxVal, NodeRef, Suggestion, Term};
 use std::collections::VecDeque;
@@ -61,80 +61,63 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
             return;
         }
 
-        let mut to_search: VecDeque<(NodeRef<'a, V>, DistInfo)> =
-            VecDeque::from(vec![(self.clone(), DistInfo::start(term.clone()))]);
+        let mut to_search: VecDeque<(NodeRef<'a, V>, DistInfo)> = VecDeque::from(vec![(
+            self.clone(),
+            DistInfo::start(term.clone(), L::ACTIVE),
+        )]);
 
         while let Some((mut childcursor, prev_state)) = to_search.pop_front() {
             while let Some(state) = prev_state.next(childcursor.char()) {
-                let mut line = LedgerLine::dist::<L>(&state);
-
                 // IS THE NODE A MATCH THAT SHOULD BE KEPT
-                match (state.abs_dist(), childcursor.expr_index()) {
-                    (0, Some(_)) => {
-                        // word match
-                        if L::ACTIVE {
-                            line.keep(MatchKept);
-                        }
-                    }
-                    (0, None) => {
-                        // node match
-                        if L::ACTIVE {
-                            line.keep(KeepNodeMatch);
-                        }
-                    }
+                let keep = match (state.abs_dist(), childcursor.expr_index()) {
+                    // word match
+                    (0, Some(_)) => MatchKept,
+                    // node match
+                    (0, None) => KeepNodeMatch,
+                    // alternative spelling
                     (1, Some(expr_index)) => {
-                        // alternative spelling
-
                         if Some(childcursor.percentile()) > spellings.min_value() {
                             if is_candidate(expr_index) {
                                 spellings.add(Suggestion::spelling(
                                     childcursor.percentile(),
                                     expr_index,
                                 ));
-                                if L::ACTIVE {
-                                    line.keep(WordKept);
-                                }
-                            } else if L::ACTIVE {
-                                line.keep(CandidateDiscarded);
+                                WordKept
+                            } else {
+                                CandidateDiscarded
                             }
-                        } else if L::ACTIVE {
-                            line.keep(PercentileTooLow);
+                        } else {
+                            PercentileTooLow
                         }
                     }
-                    (_, _) => {
-                        // more than one spelling correction
-                        if L::ACTIVE {
-                            line.keep(AbsDistTooBig);
-                        }
-                    }
+                    // more than one spelling correction
+                    (_, _) => AbsDistTooBig,
                 };
 
                 // IS THE NODE AN ALTERNATIVE PATH (NON-FINISHED SPELLING)
                 if state.abs_dist() <= 1
                     && Some(childcursor.max_child_percentile()) > altpaths.min_value()
                 {
-                    altpaths.add(AltPath::from(&childcursor, state.path()));
+                    let path = if L::ACTIVE {
+                        state.path()
+                    } else {
+                        String::new()
+                    };
+                    altpaths.add(AltPath::from(&childcursor, path));
                 }
 
-                // SHOULD THE NODE BE ADDED TO THE TO_SEARCH QUEUE
+                // SHOULD THE NODE BE ADDED TO THE TO_SEARCH QUEUE.
+                // `record_dist` borrows `state`, so it runs before the
+                // `DoSearch` arm moves `state` into the queue.
                 if state.term.remaining() <= 0 {
-                    if L::ACTIVE {
-                        line.search(SearchTermEnd);
-                    }
+                    ledger.record_dist(&state, keep, Some(SearchTermEnd));
                 } else if state.rel_dist() >= 2 {
-                    if L::ACTIVE {
-                        line.search(RelDistTooBig);
-                    }
+                    ledger.record_dist(&state, keep, Some(RelDistTooBig));
                 } else if let Some(children) = childcursor.children() {
-                    if L::ACTIVE {
-                        line.search(DoSearch);
-                    }
-
+                    ledger.record_dist(&state, keep, Some(DoSearch));
                     to_search.push_back((children, state));
-                }
-
-                if L::ACTIVE {
-                    ledger.push(line);
+                } else {
+                    ledger.record_dist(&state, keep, None);
                 }
 
                 if !childcursor.move_to_next_sibling() {

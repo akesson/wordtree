@@ -1,6 +1,6 @@
 use super::ledger::KeepDecision::{CandidateDiscarded, NotAWord, PercentileTooLow, WordKept};
 use super::ledger::SearchDecision::{DoSearch, MaxChildPercentileTooSmall, NoChildren};
-use super::{Ledger, LedgerLine};
+use super::Ledger;
 
 use super::{MaxArr, NodeRef, Suggestion};
 use std::collections::VecDeque;
@@ -21,52 +21,50 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
     {
         let mut to_search: VecDeque<(NodeRef<'a, V>, TracePath)> = VecDeque::new();
 
-        if L::ACTIVE {
-            to_search.push_back((self.clone(), path.to_string()));
+        let seed = if L::ACTIVE {
+            path.to_string()
         } else {
-            to_search.push_back((self.clone(), "".to_string()));
-        }
+            String::new()
+        };
+        to_search.push_back((self.clone(), seed));
 
         while let Some((mut childcursor, path)) = to_search.pop_front() {
             loop {
-                let path = format!("{}{}", path, childcursor.char());
-                let mut line = LedgerLine::freq(childcursor.clone(), &path);
+                let path = if L::ACTIVE {
+                    format!("{}{}", path, childcursor.char())
+                } else {
+                    String::new()
+                };
 
-                if let Some(expr_index) = childcursor.expr_index() {
+                let keep = if let Some(expr_index) = childcursor.expr_index() {
                     if Some(childcursor.percentile()) > selector.min_value() {
                         if is_candidate(expr_index) {
                             selector
                                 .add(Suggestion::extension(childcursor.percentile(), expr_index));
-                            if L::ACTIVE {
-                                line.keep(WordKept)
-                            }
-                        } else if L::ACTIVE {
-                            line.keep(CandidateDiscarded);
+                            WordKept
+                        } else {
+                            CandidateDiscarded
                         }
-                    } else if L::ACTIVE {
-                        line.keep(PercentileTooLow)
+                    } else {
+                        PercentileTooLow
                     }
-                } else if L::ACTIVE {
-                    line.keep(NotAWord)
-                }
+                } else {
+                    NotAWord
+                };
 
-                if Some(childcursor.max_child_percentile()) < selector.min_value() {
-                    if L::ACTIVE {
-                        line.search(MaxChildPercentileTooSmall);
-                    }
+                // The queue receives a fresh child node (not the borrowed
+                // `childcursor`), so the push can happen in-branch and
+                // `record_freq` records once afterwards.
+                let search = if Some(childcursor.max_child_percentile()) < selector.min_value() {
+                    MaxChildPercentileTooSmall
                 } else if let Some(child) = childcursor.children() {
-                    if L::ACTIVE {
-                        line.search(DoSearch);
-                    }
-
                     to_search.push_back((child, path.clone()));
-                } else if L::ACTIVE {
-                    line.search(NoChildren);
-                }
+                    DoSearch
+                } else {
+                    NoChildren
+                };
 
-                if L::ACTIVE {
-                    ledger.push(line);
-                }
+                ledger.record_freq(&childcursor, &path, keep, search);
 
                 if !childcursor.move_to_next_sibling() {
                     break;

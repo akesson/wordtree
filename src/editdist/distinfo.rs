@@ -11,6 +11,9 @@ pub struct DistInfo<'a> {
     pub distance: u8,
     pub matched_pattern: Ptrn,
     pub chars: Vec<char>,
+    /// When false (the `NoLedger` case) the `chars` trace is not accumulated,
+    /// avoiding a per-node `Vec<char>` clone whose only consumer is `path()`.
+    track_path: bool,
 }
 
 impl std::fmt::Display for DistInfo<'_> {
@@ -28,7 +31,7 @@ impl std::fmt::Display for DistInfo<'_> {
 }
 
 impl<'a> DistInfo<'a> {
-    pub fn start(term: Term<'a>) -> Self {
+    pub fn start(term: Term<'a>, track_path: bool) -> Self {
         Self {
             term,
             f1: None,
@@ -38,6 +41,7 @@ impl<'a> DistInfo<'a> {
             distance: 0,
             matched_pattern: Ptrn::Begin,
             chars: Vec::new(),
+            track_path,
         }
     }
 
@@ -58,11 +62,14 @@ impl<'a> DistInfo<'a> {
             f4,
             distance: self.distance,
             matched_pattern: self.matched_pattern,
-            chars: {
+            chars: if self.track_path {
                 let mut chars = self.chars.clone();
                 chars.push(f4);
                 chars
+            } else {
+                Vec::new()
             },
+            track_path: self.track_path,
         }
     }
 
@@ -134,7 +141,7 @@ impl<'a> DistInfo<'a> {
 fn basic() {
     let chars = "hello".chars().collect::<Vec<char>>();
 
-    let curr = DistInfo::start(Term::new(&chars));
+    let curr = DistInfo::start(Term::new(&chars), true);
     assert_eq!(curr.matched_pattern, Ptrn::Begin);
 
     let curr = curr.next('h').unwrap();

@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use super::{DistInfo, Ledger, NodeRef};
+use super::{DistInfo, NodeRef};
 
 pub enum KeepDecision {
     MatchKept,
@@ -96,7 +96,7 @@ pub struct LedgerLine {
 }
 
 impl LedgerLine {
-    pub fn dist<L: Ledger>(state: &DistInfo) -> Self {
+    pub fn dist(state: &DistInfo, keep: KeepDecision, search: Option<SearchDecision>) -> Self {
         Self {
             line: LineType::Dist {
                 term: state.term.to_string(),
@@ -104,31 +104,28 @@ impl LedgerLine {
                 distance: state.distance,
                 increment: state.matched_pattern.step(),
             },
-            keep: None,
-            search: None,
+            keep: Some(keep),
+            search,
             path: state.found_string(),
         }
     }
 
-    pub fn freq<V: Deref<Target = [u8]>>(node: NodeRef<'_, V>, path: &str) -> Self {
+    pub fn freq<V: Deref<Target = [u8]>>(
+        node: &NodeRef<'_, V>,
+        path: &str,
+        keep: KeepDecision,
+        search: SearchDecision,
+    ) -> Self {
         Self {
             line: LineType::Freq {
                 chr: node.char(),
                 percentile: node.percentile(),
                 max_child_percentile: node.max_child_percentile(),
             },
-            keep: None,
-            search: None,
+            keep: Some(keep),
+            search: Some(search),
             path: path.to_string(),
         }
-    }
-
-    pub fn search(&mut self, decision: SearchDecision) {
-        self.search = Some(decision)
-    }
-
-    pub fn keep(&mut self, decision: KeepDecision) {
-        self.keep = Some(decision)
     }
 }
 

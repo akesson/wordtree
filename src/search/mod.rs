@@ -11,15 +11,27 @@ use std::ops::Deref;
 
 use super::NodeRef;
 use super::editdist::DistInfo;
+use ledger::{KeepDecision, SearchDecision};
 use maxarr::{MaxArr, MaxVal};
 pub use suggestion::Suggestion;
 pub use term::Term;
 
 pub type LedgerLine = ledger::LedgerLine;
 
+/// Records the per-node decisions made while searching. The production
+/// [`NoLedger`] implements every method as an inlined no-op, so the search
+/// builds no `LedgerLine`s (and allocates no trace strings) when `ACTIVE` is
+/// false; [`StateLedger`] keeps the full trace for the TUI/tests.
 pub trait Ledger: Default {
     const ACTIVE: bool;
-    fn push(&mut self, line: LedgerLine);
+    fn record_dist(&mut self, state: &DistInfo, keep: KeepDecision, search: Option<SearchDecision>);
+    fn record_freq<V: Deref<Target = [u8]>>(
+        &mut self,
+        node: &NodeRef<'_, V>,
+        path: &str,
+        keep: KeepDecision,
+        search: SearchDecision,
+    );
 }
 
 #[derive(Default)]
@@ -27,7 +39,21 @@ pub struct NoLedger {}
 impl Ledger for NoLedger {
     const ACTIVE: bool = false;
 
-    fn push(&mut self, _line: LedgerLine) {}
+    fn record_dist(
+        &mut self,
+        _state: &DistInfo,
+        _keep: KeepDecision,
+        _search: Option<SearchDecision>,
+    ) {
+    }
+    fn record_freq<V: Deref<Target = [u8]>>(
+        &mut self,
+        _node: &NodeRef<'_, V>,
+        _path: &str,
+        _keep: KeepDecision,
+        _search: SearchDecision,
+    ) {
+    }
 }
 
 #[derive(Default)]
@@ -36,8 +62,22 @@ pub struct StateLedger(pub Vec<ledger::LedgerLine>);
 impl Ledger for StateLedger {
     const ACTIVE: bool = true;
 
-    fn push(&mut self, line: LedgerLine) {
-        self.0.push(line)
+    fn record_dist(
+        &mut self,
+        state: &DistInfo,
+        keep: KeepDecision,
+        search: Option<SearchDecision>,
+    ) {
+        self.0.push(LedgerLine::dist(state, keep, search));
+    }
+    fn record_freq<V: Deref<Target = [u8]>>(
+        &mut self,
+        node: &NodeRef<'_, V>,
+        path: &str,
+        keep: KeepDecision,
+        search: SearchDecision,
+    ) {
+        self.0.push(LedgerLine::freq(node, path, keep, search));
     }
 }
 
