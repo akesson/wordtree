@@ -183,10 +183,10 @@ This enables a state-based edit distance evaluation, removing any need for costl
 
 | lang | Suggestions test                      | median (M4 Pro) |
 | ---- | ------------------------------------- | --------------- |
-| sv   | Suggestions (2 chars) u\_             | 379.68 us       |
-| sv   | Suggestions (14 chars) rekommendat_on | 810.71 us       |
-| en   | Suggestions (2 chars) o\_             | 939.16 us       |
-| en   | Suggestions (14 chars) alphanumeri_al | 1536.0 us       |
+| sv   | Suggestions (2 chars) u\_             | 19.91 us        |
+| sv   | Suggestions (14 chars) rekommendat_on | 38.69 us        |
+| en   | Suggestions (2 chars) o\_             | 49.59 us        |
+| en   | Suggestions (14 chars) alphanumeri_al | 76.97 us        |
 
 ## Generation
 
