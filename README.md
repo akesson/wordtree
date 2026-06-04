@@ -69,10 +69,9 @@ The bundled benchmark and test word lists are derived from PanLex and Wiktionary
   - [Edit distance](#edit-distance)
 - [Benchmarking](#benchmarking)
   - [Find word index](#find-word-index)
-    - [boomphf](#boomphf)
-    - [word-tree](#word-tree-1)
   - [Find path for word](#find-path-for-word)
   - [Suggestions](#suggestions)
+  - [Generation](#generation)
 - [Information about the data](#information-about-the-data)
   - [English](#english)
     - [Node child count distribution](#node-child-count-distribution)
@@ -157,49 +156,54 @@ This enables a state-based edit distance evaluation, removing any need for costl
 
 # Benchmarking
 
+> Measured on an Apple M4 Pro against the word lists bundled in `benches/data/`
+> (~638k English, ~113k Swedish words). Run `cargo bench` to reproduce. Lookup
+> (`index` / `path`) is `O(word length)` and cheap; suggestions scale with tree
+> size, so they are markedly more expensive on these full word lists.
+
 ## Find word index
 
-### boomphf
-
-[boomphf](https://10xgenomics.github.io/rust-boomphf/master/boomphf/index.html) is a minimal perfect hash library.
-
-| lang | Index test                         | median (mac mini m1) | median (rpi4) |
-| ---- | ---------------------------------- | -------------------- | ------------- |
-| sv   | Index of (2 chars) ut              | 37.991 ns            | 180.45 ns     |
-| sv   | Index of (14 chars) rekommendation | 60.935 ns            | 342.38 ns     |
-| en   | Index of (2 chars) on              | 38.426 ns            | 185.14 ns     |
-| en   | Index of (14 chars) alphanumerical | 63.270 ns            | 327.04 ns     |
-
-### word-tree
-
-The word-tree implementation is roughly 2 times **slower** than boomphf.
-
-| lang | Index test                         | median (mac mini m1) | median (rpi4) |
-| ---- | ---------------------------------- | -------------------- | ------------- |
-| sv   | Index of (2 chars) ut              | 45.191 ns            | 241.71 ns     |
-| sv   | Index of (14 chars) rekommendation | 61.278 ns            | 332.53 ns     |
-| en   | Index of (2 chars) on              | 46.590 ns            | 250.74 ns     |
-| en   | Index of (14 chars) alphanumerical | 67.225 ns            | 414.15 ns     |
+| lang | Index test                         | median (M4 Pro) |
+| ---- | ---------------------------------- | --------------- |
+| sv   | Index of (2 chars) ut              | 31.95 ns        |
+| sv   | Index of (14 chars) rekommendation | 55.97 ns        |
+| en   | Index of (2 chars) on              | 50.39 ns        |
+| en   | Index of (14 chars) alphanumerical | 87.26 ns        |
 
 ## Find path for word
 
-| lang | Path test                      | median (mac mini m1) | median (rpi4) |
-| ---- | ------------------------------ | -------------------- | ------------- |
-| sv   | Path (2 chars) ut              | 110.11 ns            | 326.54 ns     |
-| sv   | Path (14 chars) rekommendation | 150.96 ns            | 516.13 ns     |
-| en   | Path (2 chars) on              | 113.34 ns            | 326.62 ns     |
-| en   | Path (14 chars) alphanumerical | 145.06 ns            | 646.65 ns     |
+| lang | Path test                      | median (M4 Pro) |
+| ---- | ------------------------------ | --------------- |
+| sv   | Path (2 chars) ut              | 41.80 ns        |
+| sv   | Path (14 chars) rekommendation | 80.18 ns        |
+| en   | Path (2 chars) on              | 54.85 ns        |
+| en   | Path (14 chars) alphanumerical | 113.18 ns       |
 
 ## Suggestions
 
-| lang | Path test                             | median (mac mini m1) | median (rpi4) |
-| ---- | ------------------------------------- | -------------------- | ------------- |
-| sv   | Suggestions (2 chars) u\_             | 33.605 us            | 183.11 us     |
-| sv   | Suggestions (14 chars) rekommendat_on | 44.030 us            | 232.70 us     |
-| en   | Suggestions (2 chars) rekommendat_on  | 41.333 us            | 229.01 us     |
-| en   | Suggestions (14 chars) alphanumeri_al | 54.297 us            | 289.79 us     |
+| lang | Suggestions test                      | median (M4 Pro) |
+| ---- | ------------------------------------- | --------------- |
+| sv   | Suggestions (2 chars) u\_             | 160.00 us       |
+| sv   | Suggestions (14 chars) rekommendat_on | 362.16 us       |
+| en   | Suggestions (2 chars) o\_             | 725.12 us       |
+| en   | Suggestions (14 chars) alphanumeri_al | 1125.3 us       |
+
+## Generation
+
+Building the whole tree from the bundled TSV with `Tree::from_tsv`.
+
+| lang | Generation test | median (M4 Pro) |
+| ---- | --------------- | --------------- |
+| sv   | tree            | 145.17 ms       |
+| en   | tree            | 907.16 ms       |
 
 # Information about the data
+
+> Like the benchmarks above, these statistics describe the original private
+> dataset, not the `benches/data/*.tsv.zst` files bundled here. The bundled
+> lists hold ~638k English and ~113k Swedish words (each mapping to a distinct
+> expression), so the node, expression and distribution counts below do not
+> match what this repo would produce.
 
 ## English
 
