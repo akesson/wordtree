@@ -11,6 +11,7 @@ pub fn read_csv(file: &str) -> std::io::Result<Vec<TsvEntry>> {
     let mut rdr = csv::ReaderBuilder::new()
         .has_headers(false)
         .delimiter(b'\t')
+        .quoting(false) // words may contain a bare `"`; don't treat it as a field quote
         .from_reader(input);
     let mut vec = Vec::new();
 

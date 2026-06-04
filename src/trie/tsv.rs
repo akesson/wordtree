@@ -14,6 +14,7 @@ impl Tree {
             csv::ReaderBuilder::new()
                 .has_headers(false)
                 .delimiter(b'\t')
+                .quoting(false) // words may contain a bare `"`; don't treat it as a field quote
                 .from_path(&file)?,
         )
     }
