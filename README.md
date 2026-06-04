@@ -8,8 +8,9 @@ A compact, cache-friendly trie for storing large word lists with three jobs in m
 
 - **Browsable indexes** — words are grouped into folders (≈100 per folder) for navigation.
 - **Fast lookup** — resolve a word to its expression index in `O(word length)`.
-- **Spelling suggestions** — frequency-aware fuzzy matching via a Damerau-Levenshtein
-  state machine optimised for edit distance ≤ 1.
+- **Spelling suggestions** — frequency-aware fuzzy matching via incremental
+  Damerau-Levenshtein over the trie, correcting any single edit (substitution,
+  transposition, insertion or deletion) at edit distance ≤ 1.
 
 The tree is stored as a width-first array of 12-byte nodes (~88 bits each) and can be
 serialised with [`rkyv`](https://rkyv.org) for zero-copy, memory-mapped access. See the
@@ -35,8 +36,11 @@ assert_eq!(tree.index_of("apple"), Some(1));
 let _path = tree.path_of("apricot");
 
 // Frequency-aware suggestions for a (mis)typed query; the closure filters
-// which expression indices are acceptable candidates.
-let _suggestions = tree.suggestions("aple", |_expr_index| true);
+// which expression indices are acceptable candidates. "aple" is a deletion typo
+// of "apple"; length-changing edits (indels) within edit distance 1 are
+// corrected, so "apple" (expr_index 1) is among the suggestions.
+let suggestions = tree.suggestions("aple", |_expr_index| true);
+assert!(suggestions.iter().any(|s| s.expr_index == 1));
 ```
 
 `to_tree()` returns a `Tree` that implements `TreeFn`. After `rkyv`-serialising it, the
@@ -150,9 +154,9 @@ that if read from disk, there is no need to type-cast or transform the data.
 
 ## Edit distance
 
-An edit distance of 1 should be sufficient, if transposition is accounted for (i.e. swapping two chars when writing).
+An edit distance of 1 — counting transposition (swapping two adjacent chars) alongside substitution, insertion and deletion — is sufficient for as-you-type correction.
 
-This enables a state-based edit distance evaluation, removing any need for costly matrix-based calculations. See [src/editdist/README.md](src/editdist/README.md)
+It is evaluated incrementally as the trie is walked: one small dynamic-programming Damerau-Levenshtein row per node, with a subtree pruned as soon as its whole row is out of range. This handles all four edit kinds uniformly and visits only a tiny fraction of the tree, without a full edit-distance matrix. See [src/editdist/README.md](src/editdist/README.md)
 
 # Benchmarking
 
@@ -183,10 +187,10 @@ This enables a state-based edit distance evaluation, removing any need for costl
 
 | lang | Suggestions test                      | median (M4 Pro) |
 | ---- | ------------------------------------- | --------------- |
-| sv   | Suggestions (2 chars) u\_             | 19.91 us        |
-| sv   | Suggestions (14 chars) rekommendat_on | 38.69 us        |
-| en   | Suggestions (2 chars) o\_             | 49.59 us        |
-| en   | Suggestions (14 chars) alphanumeri_al | 76.97 us        |
+| sv   | Suggestions (2 chars) u\_             | 26.08 us        |
+| sv   | Suggestions (14 chars) rekommendat_on | 142.98 us       |
+| en   | Suggestions (2 chars) o\_             | 61.60 us        |
+| en   | Suggestions (14 chars) alphanumeri_al | 278.46 us       |
 
 ## Generation
 

@@ -1,13 +1,13 @@
 use std::ops::Deref;
 
-use super::{DistInfo, NodeRef};
+use super::NodeRef;
 
 pub enum KeepDecision {
     MatchKept,
     NodeMatch,
     WordKept,
     PercentileTooLow,
-    AbsDistTooBig,
+    DistTooBig,
     NotAWord,
     CandidateDiscarded,
 }
@@ -19,7 +19,7 @@ impl KeepDecision {
             Self::NodeMatch => "node match",
             Self::WordKept => "word kept",
             Self::PercentileTooLow => "too low percentile",
-            Self::AbsDistTooBig => "abs. dist. too big",
+            Self::DistTooBig => "dist too big",
             Self::NotAWord => "not a word",
             Self::CandidateDiscarded => "candidate discarded",
         }
@@ -27,8 +27,7 @@ impl KeepDecision {
 }
 
 pub enum SearchDecision {
-    RelDistTooBig,
-    SearchTermEnd,
+    MinDistTooBig,
     DoSearch,
     MaxChildPercentileTooSmall,
     NoChildren,
@@ -37,9 +36,8 @@ pub enum SearchDecision {
 impl SearchDecision {
     pub fn str(&self) -> &'static str {
         match self {
-            Self::RelDistTooBig => "rel. dist. too big",
+            Self::MinDistTooBig => "min dist too big",
             Self::DoSearch => "do search",
-            Self::SearchTermEnd => "search term end",
             Self::MaxChildPercentileTooSmall => "max child percentile too small",
             Self::NoChildren => "no children",
         }
@@ -48,10 +46,11 @@ impl SearchDecision {
 
 pub enum LineType {
     Dist {
-        term: String,
-        state: String,
-        distance: u8,
-        increment: u8,
+        query: String,
+        /// edit distance of the whole query to this node's word
+        dist: u8,
+        /// smallest distance in the row (prefix distance / prune key)
+        min: u8,
     },
     Freq {
         chr: char,
@@ -63,16 +62,9 @@ pub enum LineType {
 impl std::fmt::Display for LineType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::Dist {
-                term,
-                state,
-                distance,
-                increment,
-            } => write!(
-                f,
-                "{}: {}, dist({}), incr({})",
-                term, state, distance, increment,
-            ),
+            Self::Dist { query, dist, min } => {
+                write!(f, "{}, dist({}), min({})", query, dist, min)
+            }
             Self::Freq {
                 chr,
                 percentile,
@@ -92,21 +84,28 @@ pub struct LedgerLine {
     pub line: LineType,
     pub keep: Option<KeepDecision>,
     pub search: Option<SearchDecision>,
+    /// the word spelled out by the path from the root to this node
     pub path: String,
 }
 
 impl LedgerLine {
-    pub fn dist(state: &DistInfo, keep: KeepDecision, search: Option<SearchDecision>) -> Self {
+    pub fn dist(
+        word: &str,
+        query: &str,
+        dist: u8,
+        min: u8,
+        keep: KeepDecision,
+        search: Option<SearchDecision>,
+    ) -> Self {
         Self {
             line: LineType::Dist {
-                term: state.term.to_string(),
-                state: state.matched_pattern.to_string(),
-                distance: state.distance,
-                increment: state.matched_pattern.step(),
+                query: query.to_string(),
+                dist,
+                min,
             },
             keep: Some(keep),
             search,
-            path: state.found_string(),
+            path: word.to_string(),
         }
     }
 

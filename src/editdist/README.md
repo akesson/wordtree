@@ -1,144 +1,60 @@
-- [Edit State](#edit-state)
-  - [State chart](#state-chart)
-- [Example - `s`earched=`some`](#example---searchedsome)
-  - [Equals - `f`ound=`some`](#equals---foundsome)
-  - [Delete - `f`ound=`sme`](#delete---foundsme)
-  - [Translate - `f`ound=`smoe`](#translate---foundsmoe)
-  - [Insert - `f`ound=`sotme`](#insert---foundsotme)
-  - [Substitute - `f`ound=`stme`](#substitute---foundstme)
-  - [Added - `f`ound=`someone`](#added---foundsomeone)
+# Edit distance
 
-# Edit State
+Spelling suggestions are found by an **incremental Damerau-Levenshtein distance
+carried down the trie**: as the search walks the tree, every node keeps one
+dynamic-programming row recording the edit distance between the query and the
+word spelled by the path from the root to that node. This corrects any single
+edit — substitution, transposition, insertion or deletion — at edit distance ≤ 1,
+and extends to larger distances by raising a single constant.
 
-The edit state is a state-based [Damerau-Levenshtein](https://en.wikipedia.org/wiki/Damerau–Levenshtein_distance) [edit distance](https://en.wikipedia.org/wiki/Edit_distance) that currently meant to work accurately up to a edit-distance of
-one. It should be possible to extend it to a distance of two should it be necessary (would probably introduce new states).
+The implementation is [`dlrow.rs`](dlrow.rs); the trie walk that drives it is
+[`../search/distsearch.rs`](../search/distsearch.rs).
 
-The state-based approach is very fast compared to the normal, computationally expensive matrix-based, solutions and 
-also doesn't need to re-compute the full comparison for each letter in the input.
+## The row
 
-Note 1: translated characters (smoe instead of some) is missclassified as `deleted` when only
-one of the translated characters has been analyzed, but when the second one is analyzed it correctly
-detects the `translated` state.
+For a query of length `n`, each node stores a row of `n + 1` values where
 
-Note 2: substituted characters (stme instead of some) is at first missclassified as `inserted` 
-but once the following character has been analyzed it correclty detects the `substituted` stated.
-
-For both cases above, the edit distance stays correct.
-
-## State chart
-
-```mermaid
-stateDiagram-v2
-    state "Matching" as M
-    state "Deleted" as D
-    state "Translated" as T
-    state "Inserted" as I
-    state "Substituted" as S
-    state "Added" as A
-    [*] --> M
-    M --> M
-    M --> D
-    D --> M
-    D --> T
-    T --> M
-    I --> S
-    I --> M
-    M --> I
-    S --> M
-    T --> A
-    S --> A
-    D --> A
-    I --> A
-    M --> A
-    A --> A
+```
+row[j] = edit_distance(query[0..j], word_spelled_to_this_node)
 ```
 
-# Example - `s`earched=`some`
+The row for a node is computed from its parent's row (`prev`) and its
+grandparent's row (`prev_prev`, needed only for transposition), given the node's
+character `ch` and the parent's character:
 
-Syntax:
-> `<what>`_`<which>`
+```
+row[0] = prev[0] + 1                                  // = depth in the trie
+for j in 1..=n:
+    cost   = if query[j-1] == ch { 0 } else { 1 }
+    row[j] = min(prev[j]   + 1,                        // deletion  (word longer)
+                 row[j-1]  + 1,                         // insertion (word shorter)
+                 prev[j-1] + cost)                      // match / substitution
+    if query[j-1] == parent_char and ch == query[j-2]:
+        row[j] = min(row[j], prev_prev[j-2] + 1)        // transposition
+```
 
-what:
- - `s`: searched - what the user entered
- - `f`: found - node found walking the tree (trie)
+The root's notional parent is the empty word, whose row is the deletion ladder
+`[0, 1, 2, …, n]`.
 
-which:
- - `p_p`: previous previous
- - `p`: previous
- - `c`: current
- - `n`: next
+Two quantities drive the search:
 
-## Equals - `f`ound=`some`
+- **`row[n]`** is the distance between the *whole* query and this node's word.
+  When the node is a complete word and `row[n] ≤ MAX_DIST`, it is a spelling
+  correction.
+- **`min(row)`** is the smallest value in the row — the distance to the closest
+  *prefix*, and a lower bound on the distance to every word below this node. Once
+  `min(row) > MAX_DIST` the entire subtree is pruned, so the walk descends at most
+  `MAX_DIST` levels past the query length and touches only a small fraction of the
+  tree.
 
-Condition:
-> `s_c` == `f_c`
+## Notes
 
-| s_p_p | s_p | s_c | s_n |     | f_p | f_c | state | idx | dist |
-| ----- | --- | --- | --- | --- | --- | --- | ----- | --- | ---- |
-| -     | -   | `s` | o   |     | -   | `s` | Eq    | +1  | 0    |
-| -     | s   | `o` | m   |     | s   | `o` | Eq    | +1  | 0    |
-| s     | o   | `m` | e   |     | o   | `m` | Eq    | +1  | 0    |
-| o     | m   | `e` | -   |     | m   | `e` | Eq    | +1  | 0    |
-
-## Delete - `f`ound=`sme`
-
-Condition:
->  `s_c` != `f_c` && `s_n` == `f_c` 
-
-| s_p_p | s_p | s_c | s_n |     | f_p | f_c | state | idx | dist |
-| ----- | --- | --- | --- | --- | --- | --- | ----- | --- | ---- |
-| -     | -   | `s` | o   |     | -   | `s` | Eq    | +1  | 0    |
-| -     | s   | `o` | m   |     | s   | `m` | Del   | +2  | 1    |
-| o     | m   | `e` | -   |     | m   | `e` | Eq    | +1  | 1    |
-
-
-## Translate - `f`ound=`smoe`
-
-Condition:
->  `s_c` != `f_c` && `s_p_p` == `f_c` && `s_p`== `f_p` && prev_state == `Del`
-
-| s_p_p | s_p | s_c | s_n |     | f_p | f_c | state | idx | dist |
-| ----- | --- | --- | --- | --- | --- | --- | ----- | --- | ---- |
-| -     | -   | `s` | o   |     | -   | `s` | Eq    | +1  | 0    |
-| -     | s   | `o` | m   |     | s   | `m` | Del   | +2  | 1    |
-| o     | m   | `e` | -   |     | m   | `o` | Trans | 0   | 1    |
-| o     | m   | `e` | -   |     | o   | `e` | Eq    | +1  | 1    |
-
-## Insert - `f`ound=`sotme`
-
-Condition:
-> `s_c` != `f_c` && `s_n` != `f_c` 
-
-| s_p_p | s_p | s_c | s_n |     | f_p | f_c | state | idx | dist |
-| ----- | --- | --- | --- | --- | --- | --- | ----- | --- | ---- |
-| -     | -   | `s` | o   |     | -   | `s` | Eq    | +1  | 0    |
-| -     | s   | `o` | m   |     | s   | `o` | Eq    | +1  | 0    |
-| s     | o   | `m` | e   |     | o   | `t` | Ins   | 0   | 1    |
-| s     | o   | `m` | e   |     | t   | `m` | Eq    | +1  | 1    |
-| o     | m   | `e` | -   |     | m   | `e` | Eq    | +1  | 1    |
-
-## Substitute - `f`ound=`stme`
-
-Condition:
-> `s_c` != `f_c` && `s_n` == `f_c` && prev_state == `Ins`
-
-
-| s_p_p | s_p | s_c | s_n |     | f_p | f_c | state | idx | dist |
-| ----- | --- | --- | --- | --- | --- | --- | ----- | --- | ---- |
-| -     | -   | `s` | o   |     | -   | `s` | Eq    | +1  | 0    |
-| -     | s   | `o` | m   |     | s   | `t` | Ins   | 0   | 1    |
-| -     | s   | `o` | m   |     | t   | `m` | Sub   | +2  | 1    |
-| o     | m   | `e` | -   |     | m   | `e` | Eq    | +1  | 1    |
-
-
-## Added - `f`ound=`someone`
-
-| s_p_p | s_p | s_c | s_n |     | f_p | f_c | state | idx | dist |
-| ----- | --- | --- | --- | --- | --- | --- | ----- | --- | ---- |
-| -     | -   | `s` | o   |     | -   | `s` | Eq    | +1  | 0    |
-| -     | s   | `o` | m   |     | s   | `o` | Eq    | +1  | 0    |
-| s     | o   | `m` | e   |     | o   | `m` | Eq    | +1  | 0    |
-| o     | m   | `e` | -   |     | m   | `e` | Eq    | +1  | 0    |
-| o     | m   | `e` | -   |     | e   | `o` | Add   | 0   | 1    |
-| o     | m   | `e` | -   |     | o   | `n` | Add   | 0   | 2    |
-| o     | m   | `e` | -   |     | n   | `e` | Add   | 0   | 3    |
+- The recurrence is the *optimal string alignment* form of Damerau-Levenshtein
+  (adjacent transpositions are not themselves re-edited). It is exact for
+  distances up to one — the only range the suggester uses — and only differs from
+  unrestricted Damerau-Levenshtein at distance two or more.
+- `MAX_DIST` (in [`dlrow.rs`](dlrow.rs)) is the single knob: set it to `2` (and,
+  if desired, restrict the row to a band around the diagonal) to offer
+  distance-2 suggestions.
+- A character is one edit regardless of how many bytes it occupies, because the
+  query and the trie are compared as `char`s, not bytes.

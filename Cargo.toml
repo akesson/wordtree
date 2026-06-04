@@ -38,6 +38,7 @@ ego-tree = { path = "ego-tree" }
 criterion = { version = "0.8", features = ["html_reports"] }
 insta = { version = "1.43", features = ["glob"] }
 lazy_static = "1.5"
+strsim = "0.11"
 tempfile = "3.16"
 zstd = "0.13"
 

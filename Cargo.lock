@@ -1478,6 +1478,7 @@ dependencies = [
  "nonmax",
  "rkyv",
  "serde",
+ "strsim",
  "tempfile",
  "unicode-normalization",
  "zstd",

@@ -65,7 +65,7 @@ brute-force DL≤1 set is the oracle (100% by definition).
 
 | engine | substitute | transpose | delete | insert | overall |
 | ------ | ---------: | --------: | -----: | -----: | ------: |
-| wordtree | 100% | 100% | 6% | 0% | 52% |
+| wordtree | 100% | 100% | 96% | 100% | 99% |
 | symspell | 100% | 100% | 100% | 100% | 100% |
 | fst-lev | 100% | 0% | 100% | 100% | 75% |
 
@@ -73,7 +73,7 @@ brute-force DL≤1 set is the oracle (100% by definition).
 
 | engine | avg results returned | avg recall of full DL≤1 set |
 | ------ | -------------------: | --------------------------: |
-| wordtree | 3.8 | 47% |
+| wordtree | 4.9 | 78% |
 | symspell | 5.6 | 100% |
 | fst-lev | 5.2 | 85% |
 
@@ -81,7 +81,7 @@ brute-force DL≤1 set is the oracle (100% by definition).
 
 | engine | recall@5 |
 | ------ | -------: |
-| wordtree | 67% |
+| wordtree | 63% |
 | pruning-trie | 74% |
 
 ### sv
@@ -90,7 +90,7 @@ brute-force DL≤1 set is the oracle (100% by definition).
 
 | engine | substitute | transpose | delete | insert | overall |
 | ------ | ---------: | --------: | -----: | -----: | ------: |
-| wordtree | 100% | 100% | 10% | 0% | 52% |
+| wordtree | 100% | 100% | 100% | 100% | 100% |
 | symspell | 100% | 100% | 100% | 100% | 100% |
 | fst-lev | 100% | 0% | 100% | 100% | 75% |
 
@@ -98,7 +98,7 @@ brute-force DL≤1 set is the oracle (100% by definition).
 
 | engine | avg results returned | avg recall of full DL≤1 set |
 | ------ | -------------------: | --------------------------: |
-| wordtree | 3.3 | 56% |
+| wordtree | 4.5 | 92% |
 | symspell | 2.3 | 100% |
 | fst-lev | 2.1 | 78% |
 
@@ -106,30 +106,30 @@ brute-force DL≤1 set is the oracle (100% by definition).
 
 | engine | recall@5 |
 | ------ | -------: |
-| wordtree | 70% |
+| wordtree | 68% |
 | pruning-trie | 93% |
 
-### Finding A — wordtree corrects substitutions/transpositions but not indels
+### Finding A — wordtree corrects every single-edit typo, indels included
 
-wordtree reliably corrects **same-length** edits (substitution, transposition:
-100%) but largely fails **length-changing** edits — deletions (~6–10%) and
-insertions (**0%**) — even when the intended word is the single highest-frequency
-candidate within edit distance 1.
+wordtree corrects all four single-character edit kinds at edit distance 1:
+substitution and transposition (100%) **and** the length-changing edits,
+deletion and insertion. On sv it matches symspell's per-kind recall exactly
+(100% across the board); on en it reaches 99% overall, the only gap being a few
+deletions (96%) where the intended word is crowded out of the top-k by
+higher-frequency neighbours within distance 1 — a ranking/cap effect, not a
+missing capability.
 
-This is a real algorithmic property, confirmed three ways: the per-kind table
-above (consistent across both languages), the search code, and an isolated
-three-word reproduction in [`tests/correctness.rs`](tests/correctness.rs).
-wordtree's README documents `suggestions("aple", …)` as the example query for
-"apple" — but "aple" is itself a deletion typo, and wordtree does **not** return
-"apple" for it.
+Verified two ways: the per-kind table above, and an isolated three-word
+reproduction in [`tests/correctness.rs`](tests/correctness.rs) of the README's
+own example — `suggestions("aple", …)` now returns "apple".
 
-Mechanism: `dist_search` (`src/search/distsearch.rs`) bounds its descent by the
-*query's* remaining length (`state.term.remaining() <= 0` stops the walk), and
-`abs_dist` adds `term.remaining()` (`src/editdist/distinfo.rs`). When the query is
-shorter than the target (a deletion typo), the target's deeper terminal node is
-never visited; insertions misalign the walk and are pruned. The edit-distance
-machine is tuned for an as-you-type model where the leading characters are assumed
-correct — not for full-word spell-checking with indels.
+Mechanism: `dist_search` (`src/search/distsearch.rs`) carries an incremental
+Damerau-Levenshtein row down the trie (`src/editdist/dlrow.rs`): `row[n]` is the
+distance to each node's word and `min(row)` prunes whole subtrees once they are
+out of range, so all four edit kinds are handled uniformly while visiting only
+~2–3% of the tree. (Earlier versions used a 4-window state machine that, driven
+over a *branching* trie, mis-scored mid-word indels and pruned them away — delete
+recall ~6–10%, insert 0%; the row-based walk replaced it.)
 
 ### Finding B — fst's Levenshtein has no transposition
 
@@ -227,42 +227,40 @@ reason to pick wordtree.
 
 ### Fuzzy suggestions (edit distance 1)
 
-A *substitution* typo (every engine corrects it) and a *deletion* typo (wordtree
-misses it — Finding A). Brute force is the full DL≤1 scan.
+A *substitution* typo and a *deletion* typo — both now corrected by every engine
+(Finding A). Brute force is the full DL≤1 scan.
 
 | case | wordtree | symspell | fst-lev | brute force |
 | ---- | -------: | -------: | ------: | ----------: |
-| en sub `abxut` | 63.8 µs | **1.5 µs** | 125.6 µs | 97.7 ms |
-| en del `abut` | 65.4 µs | **8.1 µs** | 127.0 µs | 86.9 ms |
-| sv sub `apxil` | 33.2 µs | **1.0 µs** | 74.3 µs | 18.2 ms |
-| sv del `apil` | 34.8 µs | **2.4 µs** | 70.7 µs | 16.7 ms |
+| en sub `abxut` | 96.9 µs | **1.5 µs** | 125.6 µs | 97.7 ms |
+| en del `abut` | 90.3 µs | **8.1 µs** | 127.0 µs | 86.9 ms |
+| sv sub `apxil` | 50.6 µs | **1.0 µs** | 74.3 µs | 18.2 ms |
+| sv del `apil` | 48.0 µs | **2.4 µs** | 70.7 µs | 16.7 ms |
 
 ### Autocomplete (prefix top-5)
 
 | case | wordtree | pruning-trie |
 | ---- | -------: | -----------: |
-| en `co` | 36.2 µs | **1.3 µs** |
-| sv `ko` | 18.7 µs | **1.3 µs** |
+| en `co` | 62.6 µs | **1.3 µs** |
+| sv `ko` | 32.0 µs | **1.3 µs** |
 
-### Finding D — suggestion latency: well behind symspell, ahead of fst (for less work)
+### Finding D — suggestion latency: well behind symspell, ahead of fst-lev
 
-symspell is the clear winner at ~1–8 µs. wordtree (≈34 µs sv, ≈64 µs en) is
-**~35–45× slower than symspell** on substitutions and far behind on recall —
-including the indels it cannot correct at all (Finding A) — so for exhaustive
-spell-checking symspell wins outright.
+symspell is the clear winner at ~1–8 µs. wordtree (≈50 µs sv, ≈95 µs en) is
+**~50–65× slower than symspell** on substitutions; symspell also returns the
+*complete* DL≤1 set whereas wordtree returns a short, frequency-capped list, so
+for exhaustive spell-checking symspell wins outright.
 
-Against fst-lev (≈70–130 µs) wordtree is **~2× faster** on these queries, but the
-comparison is not free: wordtree prunes insertions/deletions (Finding A), so it
-explores a narrower edit space and returns less, while fst's automaton covers
-indels. For autocomplete, pruning_radix_trie (≈1.3 µs) is **~15–30× faster** and
-more accurate.
+Against fst-lev (≈70–130 µs) wordtree is **~1.3–1.5× faster** on these queries
+while correcting the same edit kinds *plus* transpositions (fst-lev is plain
+Levenshtein). For autocomplete, pruning_radix_trie (≈1.3 µs) is **~25–50× faster**
+and more accurate.
 
 The residual cost is structural: `suggestions` runs a breadth-first edit-distance
-walk plus a frequency search over a wide frontier on every call, whereas symspell
-does a handful of hash lookups against precomputed deletes and the pruning trie
-does a pruned top-k descent. Note the `del` column: wordtree spends ~65 µs (en)
-and still returns nothing useful for the deletion typo (Finding A) — it pays the
-search cost without the correction.
+walk — one small dynamic-programming row per visited node — plus a frequency
+search over the frontier on every call, whereas symspell does a handful of hash
+lookups against precomputed deletes and the pruning trie does a pruned top-k
+descent.
 
 ---
 
@@ -275,20 +273,22 @@ On **every individual axis, a specialist beats wordtree**:
 - **Size:** fst does lookup+fuzzy in ~4× less space; wordtree is mid-pack with the
   naive key-storing maps. wordtree's bytes buy inline frequency + folders +
   zero-copy mmap.
-- **Fuzzy suggestions:** symspell is ~35–45× faster (substitutions) **and** far
-  more complete — wordtree misses insertions/deletions entirely (Finding A) — so
-  for real spell-checking symspell wins outright. wordtree is ~2× faster than
-  fst-lev here, but only because it explores a narrower edit space (no indels);
-  fst's automaton is also plain Levenshtein (no transposition).
-- **Autocomplete:** pruning_radix_trie is ~15–30× faster and tracks the frequency
+- **Fuzzy suggestions:** wordtree now corrects all four single-edit kinds
+  (Finding A), but symspell is still ~50–65× faster and returns the *complete*
+  DL≤1 set, whereas wordtree returns a short, frequency-capped list — so for
+  exhaustive spell-checking symspell wins. wordtree is ~1.3–1.5× faster than
+  fst-lev, and unlike fst's plain-Levenshtein automaton it also corrects
+  transpositions.
+- **Autocomplete:** pruning_radix_trie is ~25–50× faster and tracks the frequency
   oracle better.
 
 **The case for wordtree is the *combination*, not any single axis**: a browsable
 folder index + frequency + as-you-type suggestions in **one** structure that
 loads by zero-copy mmap with no parse/build step (`live == serialized`), returning
-a deliberately short, frequency-ranked, substitution/transposition-tolerant list.
-If you need all three jobs from one mmappable file and can live with indel-blind
-suggestions, it is a reasonable single dependency. If you need any one job on its
+a deliberately short, frequency-ranked, single-edit-tolerant list (substitutions,
+transpositions and indels). If you need all three jobs from one mmappable file and
+can live with a small frequency-capped suggestion set rather than the exhaustive
+DL≤1 set, it is a reasonable single dependency. If you need any one job on its
 own — or low suggestion latency, or minimum size — reach for the specialist.
 
 ### Caveats & honesty notes

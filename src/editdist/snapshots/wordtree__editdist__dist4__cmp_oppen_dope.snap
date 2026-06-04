@@ -1,9 +1,0 @@
----
-source: lib/src/editdist/dist4.rs
-assertion_line: 341
-expression: "cmp(\"oppe\", \"Dope\")"
----
-term - found
-   o <->    D  1ᵈⁱˢᵗ 0ᵃˡⁱᵍⁿ 1ˢᵗᵉᵖ  DifferentT4
-  op <->   Do  0ᵈⁱˢᵗ 1ᵃˡⁱᵍⁿ 1ˢᵗᵉᵖ  InsertT3
- opp <->  Dop  0ᵈⁱˢᵗ 1ᵃˡⁱᵍⁿ 2ˢᵗᵉᵖ  InsertT2

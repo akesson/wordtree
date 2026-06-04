@@ -1,0 +1,19 @@
+---
+source: src/search/tests/mod.rs
+assertion_line: 320
+expression: trace
+---
+a <-> ala, dist(2), min(0), keep: dist too big, search: do search
+al <-> ala, dist(1), min(0), keep: dist too big, search: do search
+all <-> ala, dist(1), min(1), keep: dist too big, search: do search
+alla <-> ala, dist(1), min(1), keep: word kept, search: no children
+alle <-> ala, dist(2), min(2), keep: dist too big, search: min dist too big
+all <-> l 0.0% (max 9.9%), keep: not a word, search: do search
+alll <-> l 0.0% (max 9.9%), keep: not a word, search: do search
+allla <-> a 9.9% (max 0.0%), keep: word kept, search: no children
+allle <-> e 5.0% (max 0.0%), keep: word kept, search: no children
+alll <-> l 0.0% (max 9.9%), keep: not a word, search: do search
+allla <-> a 9.9% (max 0.0%), keep: word kept, search: no children
+allle <-> e 5.0% (max 0.0%), keep: word kept, search: no children
+allaa <-> a 9.9% (max 0.0%), keep: word kept, search: max child percentile too small
+allae <-> e 5.0% (max 0.0%), keep: too low percentile, search: max child percentile too small

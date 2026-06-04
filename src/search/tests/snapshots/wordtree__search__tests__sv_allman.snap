@@ -1,11 +1,10 @@
 ---
-source: lib/src/search/tests/mod.rs
-assertion_line: 53
+source: src/search/tests/mod.rs
+assertion_line: 54
 expression: "suggestions(&SV, \"allmän\")"
 ---
 Matching 1961 98.2%    allmän
 Extension 8354 92.7%    allmänhet
-Extension 9675 91.6%    allmänt
+Spelling 9675 91.6%    allmänt
 Extension 21601 81.9%    allmänning
 Extension 22074 81.5%    allmänheten
-Extension 22822 80.9%    allmänbildning

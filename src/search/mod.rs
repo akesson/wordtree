@@ -3,18 +3,15 @@ mod freqsearch;
 pub mod ledger;
 mod maxarr;
 mod suggestion;
-mod term;
 #[cfg(test)]
 mod tests;
 
 use std::ops::Deref;
 
 use super::NodeRef;
-use super::editdist::DistInfo;
 use ledger::{KeepDecision, SearchDecision};
 use maxarr::{MaxArr, MaxVal};
 pub use suggestion::Suggestion;
-pub use term::Term;
 
 pub type LedgerLine = ledger::LedgerLine;
 
@@ -24,7 +21,16 @@ pub type LedgerLine = ledger::LedgerLine;
 /// false; [`StateLedger`] keeps the full trace for the TUI/tests.
 pub trait Ledger: Default {
     const ACTIVE: bool;
-    fn record_dist(&mut self, state: &DistInfo, keep: KeepDecision, search: Option<SearchDecision>);
+    #[allow(clippy::too_many_arguments)]
+    fn record_dist(
+        &mut self,
+        word: &str,
+        query: &str,
+        dist: u8,
+        min: u8,
+        keep: KeepDecision,
+        search: Option<SearchDecision>,
+    );
     fn record_freq<V: Deref<Target = [u8]>>(
         &mut self,
         node: &NodeRef<'_, V>,
@@ -41,7 +47,10 @@ impl Ledger for NoLedger {
 
     fn record_dist(
         &mut self,
-        _state: &DistInfo,
+        _word: &str,
+        _query: &str,
+        _dist: u8,
+        _min: u8,
         _keep: KeepDecision,
         _search: Option<SearchDecision>,
     ) {
@@ -64,11 +73,15 @@ impl Ledger for StateLedger {
 
     fn record_dist(
         &mut self,
-        state: &DistInfo,
+        word: &str,
+        query: &str,
+        dist: u8,
+        min: u8,
         keep: KeepDecision,
         search: Option<SearchDecision>,
     ) {
-        self.0.push(LedgerLine::dist(state, keep, search));
+        self.0
+            .push(LedgerLine::dist(word, query, dist, min, keep, search));
     }
     fn record_freq<V: Deref<Target = [u8]>>(
         &mut self,
@@ -110,7 +123,6 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
         F: Fn(u32) -> bool,
     {
         let chars: Vec<char> = search.chars().collect();
-        let term = Term::new(&chars);
 
         let found = self.find(&chars);
         let found_index = found.as_ref().and_then(|f| f.expr_index());
@@ -134,7 +146,7 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
 
         let mut spellings = MaxArr::with_capacity(spellings_cap);
         let mut altpaths = MaxArr::with_capacity(3);
-        self.dist_search(&term, &is_candidate, &mut spellings, &mut altpaths, ledger);
+        self.dist_search(&chars, &is_candidate, &mut spellings, &mut altpaths, ledger);
         suggestions.extend(spellings.into_iter());
 
         if let Some(start) = found.as_ref().and_then(|n| n.children()) {

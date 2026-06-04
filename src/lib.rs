@@ -10,8 +10,6 @@ pub use search::Suggestion;
 pub use trie::tsv::Entry as TsvEntry;
 pub use trie::{ArchivedTree, NodeRef, Tree, TreeFn};
 
-use search::Term;
-
 pub const NUL: char = '\u{0}';
 pub use search::{StateLedger, ledger};
 pub use trie::tree_as;

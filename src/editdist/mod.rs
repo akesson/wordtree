@@ -1,4 +1,3 @@
-mod dist4;
-mod distinfo;
+mod dlrow;
 
-pub use distinfo::DistInfo;
+pub use dlrow::{MAX_DIST, base_row, fill_row, row_min};

@@ -82,14 +82,15 @@ fn fuzzy_oracle_contains_targets() {
 }
 
 #[test]
-fn wordtree_indel_asymmetry_isolated() {
+fn wordtree_corrects_all_edit_kinds_isolated() {
     // Isolated reproduction of the README usage example (apple/apply/apricot),
     // removing the data pipeline entirely. Confirms wordtree's suggestion engine
-    // corrects same-length edits but not length-changing ones (indels):
+    // corrects every single-edit typo at distance 1, including the length-changing
+    // ones (indels):
     //   - "appel"  (transpose l<->e of apple) -> finds "apple"
     //   - "applr"  (substitute e->r)          -> finds "apple"
-    //   - "aple"   (delete a p; the README's OWN example string) -> MISSES "apple"
-    //   - "appale" (insert an a)               -> MISSES "apple"
+    //   - "aple"   (delete a p; the README's OWN example string) -> finds "apple"
+    //   - "appale" (insert an a)               -> finds "apple"
     let mut b = wordtree::Builder::new();
     b.add_word("apple", 99, 1);
     b.add_word("apply", 80, 2);
@@ -110,32 +111,27 @@ fn wordtree_indel_asymmetry_isolated() {
             .collect()
     };
 
-    assert!(
-        words("appel").contains(&"apple".to_string()),
-        "transpose should correct"
-    );
-    assert!(
-        words("applr").contains(&"apple".to_string()),
-        "substitute should correct"
-    );
-    // Verified asymmetry — these are the indel cases:
-    assert!(
-        !words("aple").contains(&"apple".to_string()),
-        "delete typo unexpectedly corrected"
-    );
-    assert!(
-        !words("appale").contains(&"apple".to_string()),
-        "insert typo unexpectedly corrected"
-    );
-    eprintln!("verified: wordtree corrects substitution/transposition but not indels");
+    for (typo, kind) in [
+        ("appel", "transpose"),
+        ("applr", "substitute"),
+        ("aple", "delete"),
+        ("appale", "insert"),
+    ] {
+        assert!(
+            words(typo).contains(&"apple".to_string()),
+            "{kind} typo {typo:?} should correct to apple"
+        );
+    }
+    eprintln!("verified: wordtree corrects substitution, transposition, deletion and insertion");
 }
 
 #[test]
 fn diagnose_typo_recall_by_kind() {
     // Diagnostic (not a hard gate): wordtree is a top-k frequency-ranked
-    // suggester capped at ~3 spellings, so it is expected to recover the target
-    // less often than exhaustive symspell. Break recall down by edit kind and
-    // print a few concrete misses to confirm the behaviour is the cap, not a bug.
+    // suggester capped at ~3 spellings, so on dense neighbourhoods it can recover
+    // the target slightly less often than exhaustive symspell. Break recall down
+    // by edit kind and print a few concrete misses; any remaining gap is the cap,
+    // not the old indel bug — all four edit kinds are now corrected.
     let ds = Dataset::load("sv");
     let tree = build_wordtree(&ds.rows);
     let sym = build_symspell(&ds.rows);
