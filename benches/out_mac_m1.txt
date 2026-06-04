@@ -1,0 +1,126 @@
+
+generation/generate     time:   [133.09 ms 133.29 ms 133.56 ms]                                
+                        change: [-0.5557% -0.3562% -0.1194%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 7 outliers among 100 measurements (7.00%)
+  4 (4.00%) high mild
+  3 (3.00%) high severe
+
+Benchmarking generation/tree: Warming up for 3.0000 s
+Warning: Unable to complete 100 samples in 30.0s. You may wish to increase target time to 30.2s, or reduce sample count to 90.
+generation/tree         time:   [226.17 ms 226.54 ms 227.01 ms]                            
+                        change: [-1.0344% -0.7254% -0.4091%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 4 outliers among 100 measurements (4.00%)
+  1 (1.00%) high mild
+  3 (3.00%) high severe
+
+     Running unittests (target/release/deps/index-ee8c21900325be5d)
+WARNING: HTML report generation will become a non-default optional feature in Criterion.rs 0.4.0.
+This feature is being moved to cargo-criterion (https://github.com/bheisler/cargo-criterion) and will be optional in a future version of Criterion.rs. To silence this warning, either switch to cargo-criterion or enable the 'html_reports' feature in your Cargo.toml.
+
+[sv] Index of (2 chars) ut                                                                             
+                        time:   [45.180 ns 45.214 ns 45.264 ns]
+                        change: [-0.0952% +0.1306% +0.3629%] (p = 0.27 > 0.05)
+                        No change in performance detected.
+Found 14 outliers among 100 measurements (14.00%)
+  3 (3.00%) high mild
+  11 (11.00%) high severe
+
+[sv] Index of (14 chars) rekommendation                                                                            
+                        time:   [61.252 ns 61.266 ns 61.282 ns]
+                        change: [-0.1991% +0.0461% +0.2758%] (p = 0.71 > 0.05)
+                        No change in performance detected.
+Found 14 outliers among 100 measurements (14.00%)
+  5 (5.00%) high mild
+  9 (9.00%) high severe
+
+Setting expr_index to Some(21175938) but already set to 20363671
+Setting expr_index to Some(21175994) but already set to 20366750
+Setting expr_index to Some(21186939) but already set to 20366500
+[en] Index of (2 chars) on                                                                             
+                        time:   [46.574 ns 46.585 ns 46.597 ns]
+                        change: [-0.1853% -0.0289% +0.1654%] (p = 0.75 > 0.05)
+                        No change in performance detected.
+Found 11 outliers among 100 measurements (11.00%)
+  3 (3.00%) high mild
+  8 (8.00%) high severe
+
+[en] Index of (14 chars) alphanumerical                                                                            
+                        time:   [67.204 ns 67.215 ns 67.229 ns]
+                        change: [-0.7208% -0.4251% -0.1418%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 12 outliers among 100 measurements (12.00%)
+  4 (4.00%) high mild
+  8 (8.00%) high severe
+
+     Running unittests (target/release/deps/path-e13df5f1e81c632d)
+WARNING: HTML report generation will become a non-default optional feature in Criterion.rs 0.4.0.
+This feature is being moved to cargo-criterion (https://github.com/bheisler/cargo-criterion) and will be optional in a future version of Criterion.rs. To silence this warning, either switch to cargo-criterion or enable the 'html_reports' feature in your Cargo.toml.
+
+[sv] Path (2 chars) ut  time:   [111.48 ns 112.33 ns 113.21 ns]                                   
+                        change: [-1.3530% -0.2085% +0.9882%] (p = 0.72 > 0.05)
+                        No change in performance detected.
+
+[sv] Path (14 chars) rekommendation                                                                            
+                        time:   [146.76 ns 148.17 ns 149.75 ns]
+                        change: [-1.7298% -0.5148% +0.7052%] (p = 0.41 > 0.05)
+                        No change in performance detected.
+Found 36 outliers among 100 measurements (36.00%)
+  15 (15.00%) low severe
+  1 (1.00%) low mild
+  1 (1.00%) high mild
+  19 (19.00%) high severe
+
+Setting expr_index to Some(21175938) but already set to 20363671
+Setting expr_index to Some(21175994) but already set to 20366750
+Setting expr_index to Some(21186939) but already set to 20366500
+[en] Path (2 chars) on  time:   [113.34 ns 113.86 ns 114.35 ns]                                   
+                        change: [-0.0331% +0.9928% +2.1036%] (p = 0.07 > 0.05)
+                        No change in performance detected.
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+
+[en] Path (14 chars) alphanumerical                                                                            
+                        time:   [145.06 ns 145.47 ns 145.90 ns]
+                        change: [-3.6623% -2.7307% -1.7806%] (p = 0.00 < 0.05)
+                        Performance has improved.
+
+     Running unittests (target/release/deps/suggestions-f993f584ffe395cb)
+WARNING: HTML report generation will become a non-default optional feature in Criterion.rs 0.4.0.
+This feature is being moved to cargo-criterion (https://github.com/bheisler/cargo-criterion) and will be optional in a future version of Criterion.rs. To silence this warning, either switch to cargo-criterion or enable the 'html_reports' feature in your Cargo.toml.
+
+suggestions/[sv] Suggestions (2 chars) u_                                                                             
+                        time:   [33.596 us 33.605 us 33.614 us]
+                        change: [-0.0546% +0.1236% +0.3348%] (p = 0.21 > 0.05)
+                        No change in performance detected.
+Found 7 outliers among 100 measurements (7.00%)
+  1 (1.00%) high mild
+  6 (6.00%) high severe
+suggestions/[sv] Suggestions (14 chars) rekommendat_on                                                                             
+                        time:   [43.987 us 44.030 us 44.079 us]
+                        change: [+0.0219% +0.2257% +0.4306%] (p = 0.02 < 0.05)
+                        Change within noise threshold.
+Found 9 outliers among 100 measurements (9.00%)
+  3 (3.00%) high mild
+  6 (6.00%) high severe
+
+Setting expr_index to Some(21175938) but already set to 20363671
+Setting expr_index to Some(21175994) but already set to 20366750
+Setting expr_index to Some(21186939) but already set to 20366500
+suggestions/[en] Suggestions (2 chars) o_                                                                             
+                        time:   [41.313 us 41.333 us 41.353 us]
+                        change: [-0.4185% -0.2206% -0.0241%] (p = 0.03 < 0.05)
+                        Change within noise threshold.
+Found 6 outliers among 100 measurements (6.00%)
+  2 (2.00%) high mild
+  4 (4.00%) high severe
+suggestions/[en] Suggestions (14 chars) alphanumeri_al                                                                             
+                        time:   [54.278 us 54.297 us 54.316 us]
+                        change: [-0.2483% -0.0853% +0.0676%] (p = 0.32 > 0.05)
+                        No change in performance detected.
+Found 10 outliers among 100 measurements (10.00%)
+  5 (5.00%) high mild
+  5 (5.00%) high severe
+
+➜  word-tree git:(quality) 

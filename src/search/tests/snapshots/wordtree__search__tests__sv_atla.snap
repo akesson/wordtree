@@ -1,0 +1,11 @@
+---
+source: lib/src/search/tests/mod.rs
+assertion_line: 38
+expression: "suggestions(&SV, \"atla\")"
+---
+Spelling 1175 98.9%    alla
+Extension 2680 97.6%    atlas
+Spelling 2950 97.4%    avla
+Extension 59537 52.5%    atlant
+Extension 85021 33.9%    atlantisk
+Extension 86691 32.7%    atlaskota

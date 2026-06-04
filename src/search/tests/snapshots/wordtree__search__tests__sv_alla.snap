@@ -1,0 +1,11 @@
+---
+source: lib/src/search/tests/mod.rs
+assertion_line: 43
+expression: "suggestions(&SV, \"alla\")"
+---
+Matching 1175 98.9%    alla
+Spelling 2950 97.4%    avla
+Spelling 3270 97.1%    allé
+Extension 13477 88.4%    allaredan
+Extension 23617 80.4%    allas
+Extension 34144 72.2%    allativ

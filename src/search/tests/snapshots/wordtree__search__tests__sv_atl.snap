@@ -1,0 +1,11 @@
+---
+source: lib/src/search/tests/mod.rs
+assertion_line: 33
+expression: "suggestions(&SV, \"atl\")"
+---
+Spelling 2080 98.1%    att
+Extension 2680 97.6%    atlas
+Extension 2681 97.6%    atlet
+Extension 14975 87.2%    atletisk
+Extension 59537 52.5%    atlant
+Extension 74631 40.8%    atletism

@@ -1,0 +1,11 @@
+---
+source: lib/src/editdist/dist4.rs
+assertion_line: 331
+expression: "cmp(\"flyga\", \"flgya\")"
+---
+term - found
+   f <->    f  0ᵈⁱˢᵗ 0ᵃˡⁱᵍⁿ 1ˢᵗᵉᵖ  AllSame
+  fl <->   fl  0ᵈⁱˢᵗ 0ᵃˡⁱᵍⁿ 1ˢᵗᵉᵖ  AllSame
+ fly <->  flg  1ᵈⁱˢᵗ 0ᵃˡⁱᵍⁿ 1ˢᵗᵉᵖ  DifferentT4
+flyg <-> flgy  0ᵈⁱˢᵗ 0ᵃˡⁱᵍⁿ 1ˢᵗᵉᵖ  SwitchT3T4
+lyga <-> lgya  0ᵈⁱˢᵗ 0ᵃˡⁱᵍⁿ 1ˢᵗᵉᵖ  SwitchT2T3

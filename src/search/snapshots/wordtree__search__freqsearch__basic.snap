@@ -1,0 +1,15 @@
+---
+source: lib/src/search/freqsearch.rs
+assertion_line: 113
+expression: "ledger.iter().map(|e| e.to_string()).collect::<Vec<String>>().join(\"\\n\")"
+---
+hia <-> a 0.0% (max 14.3%), keep: not a word, search: do search
+hia1 <-> 1 0.0% (max 13.2%), keep: not a word, search: do search
+hiab <-> b 0.0% (max 14.3%), keep: not a word, search: do search
+hia12 <-> 2 0.0% (max 13.2%), keep: not a word, search: do search
+hiab2 <-> 2 0.0% (max 11.2%), keep: not a word, search: do search
+hiabc <-> c 0.0% (max 14.3%), keep: not a word, search: do search
+hia123 <-> 3 13.2% (max 0.0%), keep: word kept, search: no children
+hiab23 <-> 3 11.2% (max 0.0%), keep: word kept, search: no children
+hiabc3 <-> 3 14.3% (max 0.0%), keep: word kept, search: max child percentile too small
+hiabcd <-> d 12.1% (max 0.0%), keep: word kept, search: max child percentile too small

@@ -1,0 +1,10 @@
+---
+source: lib/src/search/tests/mod.rs
+assertion_line: 48
+expression: "suggestions(&SV, \"blla\")"
+---
+Extension 372 99.6%    alltid
+Spelling 1175 98.9%    alla
+Extension 1653 98.5%    alldeles
+Extension 1674 98.5%    allvarlig
+Extension 2000 98.2%    alltför

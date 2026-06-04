@@ -1,0 +1,21 @@
+---
+source: lib/src/trie/tests.rs
+assertion_line: 60
+expression: nodes
+
+---
+a:
+ aa    (idx: 1, 21% & max: 0%)
+ b:
+  ab1    (idx: 2, 22% & max: 0%)
+  ab2    (idx: 3, 23% & max: 0%)
+ add    (idx: 4, 24% & max: 0%)
+ aee    (idx: 5, 25% & max: 0%)
+ f:
+  f:
+  aff    (idx: 6, 26% & max: 29%)
+   aff1    (idx: 7, 27% & max: 0%)
+   aff2    (idx: 8, 28% & max: 0%)
+   aff3    (idx: 9, 29% & max: 0%)
+  aft    (idx: 10, 30% & max: 0%)
+ agg    (idx: 11, 31% & max: 0%)

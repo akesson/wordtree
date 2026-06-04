@@ -1,0 +1,11 @@
+---
+source: lib/src/search/tests/mod.rs
+assertion_line: 28
+expression: "suggestions(&SV, \"a\")"
+---
+Matching 30317 0.0%    a
+Extension 102 99.9%    axel
+Extension 111 99.9%    april
+Extension 148 99.8%    apa
+Extension 145 99.8%    ansikte
+Extension 223 99.8%    augusti

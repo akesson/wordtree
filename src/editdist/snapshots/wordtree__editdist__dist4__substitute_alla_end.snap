@@ -1,0 +1,13 @@
+---
+source: lib/src/editdist/dist4.rs
+assertion_line: 291
+expression: "cmp(\"alla¹²³\", \"all_¹²³\")"
+---
+term - found
+   a <->    a  0ᵈⁱˢᵗ 0ᵃˡⁱᵍⁿ 1ˢᵗᵉᵖ  AllSame
+  al <->   al  0ᵈⁱˢᵗ 0ᵃˡⁱᵍⁿ 1ˢᵗᵉᵖ  AllSame
+ all <->  all  0ᵈⁱˢᵗ 0ᵃˡⁱᵍⁿ 1ˢᵗᵉᵖ  AllSame
+alla <-> all_  1ᵈⁱˢᵗ 0ᵃˡⁱᵍⁿ 1ˢᵗᵉᵖ  DifferentT4
+lla¹ <-> ll_¹  0ᵈⁱˢᵗ 0ᵃˡⁱᵍⁿ 1ˢᵗᵉᵖ  ReplaceT3
+la¹² <-> l_¹²  0ᵈⁱˢᵗ 0ᵃˡⁱᵍⁿ 1ˢᵗᵉᵖ  ReplaceT2
+a¹²³ <-> _¹²³  0ᵈⁱˢᵗ 0ᵃˡⁱᵍⁿ 1ˢᵗᵉᵖ  ReplaceT1

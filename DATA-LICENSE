@@ -1,0 +1,25 @@
+# Data attribution
+
+The word lists bundled in this repository for tests and benchmarks are derived
+from open linguistic datasets:
+
+- `benches/data/en.tsv.zst` — English expressions with frequency percentiles
+- `benches/data/sv.tsv.zst` — Swedish expressions with frequency percentiles
+- `src/search/tests/sv_a.tsv` — small Swedish sample (words starting with "a")
+
+Each row is `path<TAB>percentile<TAB>expression_index` — factual word/frequency
+data with no original prose.
+
+## Sources
+
+- **PanLex** (https://panlex.org) — the PanLex database is released into the
+  public domain under the Creative Commons CC0 1.0 Universal dedication.
+- **Wiktionary** (https://www.wiktionary.org) — Wiktionary content is licensed
+  under CC BY-SA and the GFDL.
+
+These files are included only as representative input for running the test
+suite and benchmarks. They are not part of the `wordtree` library code, which
+is licensed separately (see `LICENSE-MIT` / `LICENSE-APACHE`).
+
+If you redistribute these data files, retain this attribution. When in doubt
+about reuse, consult the upstream license terms linked above.

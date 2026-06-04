@@ -1,0 +1,14 @@
+---
+source: lib/src/search/distsearch.rs
+assertion_line: 138
+expression: "ledger.iter().map(|e| e.to_string()).collect::<Vec<String>>().join(\"\\n\")"
+---
+   a <-> a̲bcd: AllSame, dist(0), incr(1), keep: abs. dist. too big, search: do search
+  a1 <-> ab̲cd: DifferentT4, dist(1), incr(1), keep: abs. dist. too big, search: do search
+  ab <-> ab̲cd: AllSame, dist(0), incr(1), keep: abs. dist. too big, search: do search
+ a12 <-> abc̲d: TooDifferent, dist(9), incr(1), keep: abs. dist. too big, search: rel. dist. too big
+ ab2 <-> abc̲d: DifferentT4, dist(1), incr(1), keep: abs. dist. too big, search: do search
+ abc <-> abc̲d: AllSame, dist(0), incr(1), keep: abs. dist. too big, search: do search
+ab23 <-> abcd̲: TooDifferent, dist(9), incr(1), keep: abs. dist. too big, search: search term end
+abc3 <-> abcd̲: DifferentT4, dist(1), incr(1), keep: word kept, search: search term end
+abcd <-> abcd̲: AllSame, dist(0), incr(1), keep: word match kept, search: search term end

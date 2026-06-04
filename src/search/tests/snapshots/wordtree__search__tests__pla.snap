@@ -1,0 +1,26 @@
+---
+source: lib/src/search/tests/mod.rs
+assertion_line: 101
+expression: "format!(\"{}\\n---\\n{}\", out, trace)"
+---
+Extension 3 40.6%    plate
+Extension 2 32.4%    plat
+Extension 6 20.9%    plastered
+Extension 1 15.2%    plan
+Extension 4 10.7%    plain
+---
+   p <-> p̲la: AllSame, dist(0), incr(1), keep: abs. dist. too big, search: do search
+  pl <-> pl̲a: AllSame, dist(0), incr(1), keep: abs. dist. too big, search: do search
+ pla <-> pla̲: AllSame, dist(0), incr(1), keep: node match, search: search term end
+ plu <-> pla̲: DifferentT4, dist(1), incr(1), keep: abs. dist. too big, search: search term end
+plai <-> i 0.0% (max 10.7%), keep: not a word, search: do search
+plan <-> n 15.2% (max 0.0%), keep: word kept, search: no children
+plas <-> s 0.0% (max 20.9%), keep: not a word, search: do search
+plat <-> t 32.4% (max 40.6%), keep: word kept, search: do search
+plain <-> n 10.7% (max 0.0%), keep: word kept, search: no children
+plast <-> t 0.0% (max 20.9%), keep: not a word, search: do search
+plate <-> e 40.6% (max 0.0%), keep: word kept, search: no children
+plaste <-> e 0.0% (max 20.9%), keep: not a word, search: do search
+plaster <-> r 0.0% (max 20.9%), keep: not a word, search: do search
+plastere <-> e 0.0% (max 20.9%), keep: not a word, search: do search
+plastered <-> d 20.9% (max 0.0%), keep: word kept, search: no children

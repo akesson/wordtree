@@ -1,0 +1,7 @@
+---
+source: lib/src/search/tests/mod.rs
+assertion_line: 58
+expression: "suggestions(&SV, \"allmanhet\")"
+---
+Spelling 8354 92.7%    allmänhet
+Extension 22074 81.5%    allmänheten
