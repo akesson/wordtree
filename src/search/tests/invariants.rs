@@ -54,11 +54,21 @@ fn caps_and_bounds_are_respected() {
     for (w, _, _) in sample() {
         for q in [w.clone(), mid_delete(&w)] {
             let s = suggestions_of(&SV.0, &q);
-            let matching = s.iter().filter(|(k, _, _)| *k == SuggestionType::Matching).count();
-            let spelling = s.iter().filter(|(k, _, _)| *k == SuggestionType::Spelling).count();
+            let matching = s
+                .iter()
+                .filter(|(k, _, _)| *k == SuggestionType::Matching)
+                .count();
+            let spelling = s
+                .iter()
+                .filter(|(k, _, _)| *k == SuggestionType::Spelling)
+                .count();
             assert!(matching <= 1, "more than one Matching for {q:?}");
             assert!(spelling <= 3, "more than 3 Spellings for {q:?}: {s:?}");
-            assert!(s.len() <= 6, "more than 6 suggestions for {q:?}: {}", s.len());
+            assert!(
+                s.len() <= 6,
+                "more than 6 suggestions for {q:?}: {}",
+                s.len()
+            );
         }
     }
 }
@@ -66,11 +76,10 @@ fn caps_and_bounds_are_respected() {
 #[test]
 fn every_word_matches_itself() {
     for (w, _, idx) in sample() {
-        let matched = SV
-            .0
-            .suggestions(&w, |_| true)
-            .into_iter()
-            .any(|s| s.kind == SuggestionType::Matching && s.expr_index == idx);
+        let matched =
+            SV.0.suggestions(&w, |_| true)
+                .into_iter()
+                .any(|s| s.kind == SuggestionType::Matching && s.expr_index == idx);
         assert!(matched, "word {w:?} (idx {idx}) did not match itself");
     }
 }
@@ -84,12 +93,17 @@ fn walk_prunes_the_vast_majority_of_the_tree() {
     // being flaky.
     for q in ["allmanhet", "alla", "afrikanska"] {
         let mut ledger = crate::StateLedger::default();
-        let _ = SV.0.root().suggestions_with_ledger(q, |_| true, &mut ledger);
+        let _ =
+            SV.0.root()
+                .suggestions_with_ledger(q, |_| true, &mut ledger);
         let visited = ledger
             .0
             .iter()
             .filter(|l| matches!(l.line, LineType::Dist { .. }))
             .count();
-        assert!(visited < 3000, "walk visited {visited} nodes for {q:?} (prune regressed?)");
+        assert!(
+            visited < 3000,
+            "walk visited {visited} nodes for {q:?} (prune regressed?)"
+        );
     }
 }

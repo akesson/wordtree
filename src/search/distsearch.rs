@@ -74,7 +74,16 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
         };
         let mut rows: Vec<Vec<u8>> = vec![base_row(query.len())];
         self.dist_walk(
-            1, None, "", query, &query_str, &mut rows, is_candidate, spellings, altpaths, ledger,
+            1,
+            None,
+            "",
+            query,
+            &query_str,
+            &mut rows,
+            is_candidate,
+            spellings,
+            altpaths,
+            ledger,
         );
     }
 
@@ -115,7 +124,11 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
             let keep = if dist == 0 {
                 // exact word — already emitted as `Matching` by `find()`;
                 // an exact prefix node has nothing to keep.
-                if cursor.is_word() { MatchKept } else { NodeMatch }
+                if cursor.is_word() {
+                    MatchKept
+                } else {
+                    NodeMatch
+                }
             } else if dist <= MAX_DIST {
                 // a complete word within edit distance — a spelling correction
                 match cursor.word_value() {
@@ -204,9 +217,13 @@ fn test_direct() {
     let mut ledger = StateLedger::default();
     let mut spellings = Spellings::with_capacity(3);
     let mut altpaths = AltPaths::with_capacity(3);
-    nodes
-        .root()
-        .dist_search(&chars, &|_| true, &mut spellings, &mut altpaths, &mut ledger);
+    nodes.root().dist_search(
+        &chars,
+        &|_| true,
+        &mut spellings,
+        &mut altpaths,
+        &mut ledger,
+    );
 
     insta::assert_snapshot!(
         ledger

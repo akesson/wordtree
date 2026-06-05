@@ -64,11 +64,14 @@ fn sample_words(n: usize) -> Vec<(String, u16)> {
 fn engine_corrections(q: &str) -> Vec<(String, u16)> {
     use crate::trie::TreeFn;
     let lookup = &SV.1;
-    SV.0
-        .suggestions(q, |_| true)
+    SV.0.suggestions(q, |_| true)
         .into_iter()
         .filter(|s| matches!(s.kind, SuggestionType::Matching | SuggestionType::Spelling))
-        .filter_map(|s| lookup.get(&s.expr_index).map(|e| (e.path.clone(), e.percentile)))
+        .filter_map(|s| {
+            lookup
+                .get(&s.expr_index)
+                .map(|e| (e.path.clone(), e.percentile))
+        })
         .collect()
 }
 
@@ -90,7 +93,10 @@ fn soundness_no_false_positives() {
             }
         }
     }
-    assert!(checked > 1000, "suspiciously few corrections checked ({checked})");
+    assert!(
+        checked > 1000,
+        "suspiciously few corrections checked ({checked})"
+    );
     eprintln!("soundness: {checked} corrections checked, all within DL<=1");
 }
 
@@ -126,10 +132,16 @@ fn recall_returns_the_dominant_correction() {
             }
             required += 1;
             let returned = engine_corrections(&typo).iter().any(|(g, _)| g == w);
-            assert!(returned, "RECALL MISS: typo {typo:?} did not return dominant {w:?}");
+            assert!(
+                returned,
+                "RECALL MISS: typo {typo:?} did not return dominant {w:?}"
+            );
             hits += 1;
         }
     }
-    assert!(required > 200, "too few dominant cases exercised ({required})");
+    assert!(
+        required > 200,
+        "too few dominant cases exercised ({required})"
+    );
     eprintln!("recall: {hits}/{required} dominant corrections returned");
 }

@@ -12,11 +12,15 @@ fn corrects_a_single_edit_typo() {
     let tree = tree_of(&[("alla", 900, 1), ("alle", 800, 2), ("zzzz", 100, 3)]);
     let got = tree.corrections("alxa", |_| true);
     assert!(
-        got.iter().any(|s| s.kind == SuggestionType::Spelling && s.expr_index == 1),
+        got.iter()
+            .any(|s| s.kind == SuggestionType::Spelling && s.expr_index == 1),
         "alla not corrected as a Spelling: {got:?}"
     );
     let idx: Vec<u32> = got.iter().map(|s| s.expr_index).collect();
-    assert!(!idx.contains(&2), "alle is distance 2, must be excluded: {idx:?}");
+    assert!(
+        !idx.contains(&2),
+        "alle is distance 2, must be excluded: {idx:?}"
+    );
     assert!(!idx.contains(&3), "zzzz is far, must be excluded: {idx:?}");
 }
 
@@ -62,11 +66,16 @@ fn respects_the_spellings_cap() {
 fn includes_matching_when_query_is_a_word() {
     let tree = tree_of(&[("alla", 900, 1), ("alle", 800, 2)]);
     let got = tree.corrections("alla", |_| true);
-    assert_eq!(got[0].kind, SuggestionType::Matching, "exact word not first: {got:?}");
+    assert_eq!(
+        got[0].kind,
+        SuggestionType::Matching,
+        "exact word not first: {got:?}"
+    );
     assert_eq!(got[0].expr_index, 1);
     // "alle" is one substitution from "alla" -> a Spelling
     assert!(
-        got.iter().any(|s| s.kind == SuggestionType::Spelling && s.expr_index == 2),
+        got.iter()
+            .any(|s| s.kind == SuggestionType::Spelling && s.expr_index == 2),
         "neighbour not corrected: {got:?}"
     );
 }
@@ -80,13 +89,19 @@ fn is_candidate_filter_excludes_words() {
         .into_iter()
         .map(|s| s.expr_index)
         .collect();
-    assert!(all.contains(&1) && all.contains(&2), "precondition: both candidates: {all:?}");
+    assert!(
+        all.contains(&1) && all.contains(&2),
+        "precondition: both candidates: {all:?}"
+    );
     let filtered: Vec<u32> = tree
         .corrections("alxa", |i| i != 2)
         .into_iter()
         .map(|s| s.expr_index)
         .collect();
-    assert!(filtered.contains(&1) && !filtered.contains(&2), "filter not applied: {filtered:?}");
+    assert!(
+        filtered.contains(&1) && !filtered.contains(&2),
+        "filter not applied: {filtered:?}"
+    );
 }
 
 #[test]

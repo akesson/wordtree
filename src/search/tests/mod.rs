@@ -66,8 +66,7 @@ fn spelling_count(tree: &Tree, q: &str) -> usize {
 
 /// The SV fixture rows as `(word, percentile, expr_index)`.
 fn sv_rows() -> Vec<(String, u16, u32)> {
-    SV.1
-        .iter()
+    SV.1.iter()
         .map(|(idx, e)| (e.path.clone(), e.percentile, *idx))
         .collect()
 }
@@ -175,10 +174,23 @@ fn spellings_cap_scales_with_query_length() {
         ("dxxx", 600, 4),
         ("exxx", 500, 5),
     ]);
-    assert_eq!(spelling_count(&four, "xxxx"), 3, "len 4, not found -> cap 3");
+    assert_eq!(
+        spelling_count(&four, "xxxx"),
+        3,
+        "len 4, not found -> cap 3"
+    );
 
-    let three = tree_of(&[("axx", 900, 1), ("bxx", 800, 2), ("cxx", 700, 3), ("dxx", 600, 4)]);
-    assert_eq!(spelling_count(&three, "xxx"), 2, "len 3, not found -> cap 2");
+    let three = tree_of(&[
+        ("axx", 900, 1),
+        ("bxx", 800, 2),
+        ("cxx", 700, 3),
+        ("dxx", 600, 4),
+    ]);
+    assert_eq!(
+        spelling_count(&three, "xxx"),
+        2,
+        "len 3, not found -> cap 2"
+    );
 
     let two = tree_of(&[("ax", 900, 1), ("bx", 800, 2), ("cx", 700, 3)]);
     assert_eq!(spelling_count(&two, "xx"), 1, "len 2 -> cap 1");
@@ -191,13 +203,19 @@ fn spellings_cap_scales_with_query_length() {
 fn matching_is_always_first_then_descending_percentile() {
     let tree = tree_of(&[("alla", 500, 1), ("avla", 900, 2), ("alle", 800, 3)]);
     let got = suggestions_of(&tree, "alla");
-    assert!(got[0].0 == SuggestionType::Matching, "first must be the match: {got:?}");
+    assert!(
+        got[0].0 == SuggestionType::Matching,
+        "first must be the match: {got:?}"
+    );
     assert_eq!(got[0].1, "alla");
     // everything after the leading Matching is sorted by descending percentile
     let rest: Vec<u16> = got[1..].iter().map(|(_, _, p)| *p).collect();
     let mut sorted = rest.clone();
     sorted.sort_by(|a, b| b.cmp(a));
-    assert_eq!(rest, sorted, "non-matching suggestions not sorted desc: {got:?}");
+    assert_eq!(
+        rest, sorted,
+        "non-matching suggestions not sorted desc: {got:?}"
+    );
 }
 
 #[test]
@@ -205,12 +223,11 @@ fn no_duplicate_expr_index() {
     // "alla" is a word with children ("allas" etc.); a child one edit away can be
     // reached both as a Spelling and an Extension — it must appear only once.
     let lookup = &SV.1;
-    let seen: Vec<u32> = SV
-        .0
-        .suggestions("alla", |_| true)
-        .into_iter()
-        .map(|s| s.expr_index)
-        .collect();
+    let seen: Vec<u32> =
+        SV.0.suggestions("alla", |_| true)
+            .into_iter()
+            .map(|s| s.expr_index)
+            .collect();
     let mut unique = seen.clone();
     unique.sort_unstable();
     unique.dedup();
@@ -224,8 +241,15 @@ fn is_candidate_filter_excludes_words() {
     use crate::trie::TreeFn;
     let tree = tree_of(&[("alla", 900, 1), ("alga", 800, 2)]);
     // "alxa" is distance 1 from both alla and alga (middle-char substitution).
-    let all: Vec<u32> = tree.suggestions("alxa", |_| true).into_iter().map(|s| s.expr_index).collect();
-    assert!(all.contains(&1) && all.contains(&2), "precondition: both candidates: {all:?}");
+    let all: Vec<u32> = tree
+        .suggestions("alxa", |_| true)
+        .into_iter()
+        .map(|s| s.expr_index)
+        .collect();
+    assert!(
+        all.contains(&1) && all.contains(&2),
+        "precondition: both candidates: {all:?}"
+    );
     // Excluding expr_index 2 must drop alga.
     let filtered: Vec<u32> = tree
         .suggestions("alxa", |idx| idx != 2)
@@ -233,7 +257,10 @@ fn is_candidate_filter_excludes_words() {
         .map(|s| s.expr_index)
         .collect();
     assert!(filtered.contains(&1), "kept candidate missing");
-    assert!(!filtered.contains(&2), "filtered candidate present: {filtered:?}");
+    assert!(
+        !filtered.contains(&2),
+        "filtered candidate present: {filtered:?}"
+    );
 }
 
 #[test]
@@ -264,13 +291,19 @@ fn suggestion_kinds_match_scenario() {
 #[test]
 fn altpath_autocompletes_from_corrected_stem() {
     use crate::trie::TreeFn;
-    assert!(SV_TREE.index_of("blla").is_none(), "precondition: blla is a typo");
+    assert!(
+        SV_TREE.index_of("blla").is_none(),
+        "precondition: blla is a typo"
+    );
     let got: Vec<String> = suggestions_of(&SV.0, "blla")
         .into_iter()
         .map(|(_, w, _)| w)
         .collect();
     // the direct distance-1 correction
-    assert!(got.contains(&"alla".to_string()), "missing correction alla: {got:?}");
+    assert!(
+        got.contains(&"alla".to_string()),
+        "missing correction alla: {got:?}"
+    );
     // autocompletions of the corrected "all" stem
     assert!(
         got.iter().any(|w| w.starts_with("all") && w != "alla"),
@@ -288,7 +321,10 @@ fn altpath_does_not_flood_generic_high_frequency_words() {
         .map(|(_, w, _)| w)
         .collect();
     for generic in ["axel", "april", "augusti"] {
-        assert!(!got.contains(&generic.to_string()), "flooded {generic:?}: {got:?}");
+        assert!(
+            !got.contains(&generic.to_string()),
+            "flooded {generic:?}: {got:?}"
+        );
     }
 }
 
@@ -312,7 +348,9 @@ fn dl_walk_indel_trace() {
     // engine scored this 2 and pruned it).
     let tree = tree_of(&[("alla", 99, 1), ("alle", 50, 2)]);
     let mut ledger = StateLedger::default();
-    let _ = tree.root().suggestions_with_ledger("ala", |_| true, &mut ledger);
+    let _ = tree
+        .root()
+        .suggestions_with_ledger("ala", |_| true, &mut ledger);
     let trace = ledger
         .0
         .iter()

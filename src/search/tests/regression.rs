@@ -57,7 +57,10 @@ fn sample_words(n: usize) -> Vec<String> {
 }
 
 fn all_words(q: &str) -> Vec<String> {
-    super::suggestions_of(&SV.0, q).into_iter().map(|(_, w, _)| w).collect()
+    super::suggestions_of(&SV.0, q)
+        .into_iter()
+        .map(|(_, w, _)| w)
+        .collect()
 }
 
 /// (recalled, total) for one edit kind over the sample.
@@ -105,6 +108,12 @@ fn apple_example_corrects_all_four_edit_kinds() {
     let words = |q: &str| -> Vec<String> { super::corrections(&tree, q) };
     assert!(words("appel").contains(&"apple".to_string()), "transpose");
     assert!(words("applr").contains(&"apple".to_string()), "substitute");
-    assert!(words("aple").contains(&"apple".to_string()), "delete (was broken)");
-    assert!(words("appale").contains(&"apple".to_string()), "insert (was broken)");
+    assert!(
+        words("aple").contains(&"apple".to_string()),
+        "delete (was broken)"
+    );
+    assert!(
+        words("appale").contains(&"apple".to_string()),
+        "insert (was broken)"
+    );
 }

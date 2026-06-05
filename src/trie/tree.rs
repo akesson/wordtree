@@ -18,7 +18,13 @@ impl TreeFn for Tree {
     type V = Vec<u8>;
 
     fn root(&self) -> NodeRef<'_, Vec<u8>> {
-        NodeRef::new(&self.vec, &self.word_bits, &self.rank_index, &self.values, 0)
+        NodeRef::new(
+            &self.vec,
+            &self.word_bits,
+            &self.rank_index,
+            &self.values,
+            0,
+        )
     }
 }
 
@@ -26,7 +32,13 @@ impl TreeFn for ArchivedTree {
     type V = ArchivedVec<u8>;
 
     fn root(&self) -> NodeRef<'_, ArchivedVec<u8>> {
-        NodeRef::new(&self.vec, &self.word_bits, &self.rank_index, &self.values, 0)
+        NodeRef::new(
+            &self.vec,
+            &self.word_bits,
+            &self.rank_index,
+            &self.values,
+            0,
+        )
     }
 }
 

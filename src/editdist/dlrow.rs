@@ -31,7 +31,9 @@ pub const MAX_DIST: u8 = 1;
 /// saturated into `u8`, which only matters for absurdly long queries and never
 /// affects the `<= MAX_DIST` decisions the search makes.
 pub fn base_row(query_len: usize) -> Vec<u8> {
-    (0..=query_len).map(|j| j.min(u8::MAX as usize) as u8).collect()
+    (0..=query_len)
+        .map(|j| j.min(u8::MAX as usize) as u8)
+        .collect()
 }
 
 /// The DP recurrence, written into `cur` (length `query.len() + 1`) from the
@@ -119,9 +121,9 @@ mod tests {
             ("abc", "abc", 0),
             ("kitten", "sitting", 3),
             ("flaw", "lawn", 2),
-            ("ab", "ba", 1),     // transposition
-            ("abcd", "abdc", 1), // transposition at the end
-            ("teh", "the", 1),   // transposition needing the grandparent row
+            ("ab", "ba", 1),       // transposition
+            ("abcd", "abdc", 1),   // transposition at the end
+            ("teh", "the", 1),     // transposition needing the grandparent row
             ("xabcd", "xbacd", 1), // transposition in the middle
         ];
         for (a, b, want) in cases {

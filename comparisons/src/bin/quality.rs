@@ -146,8 +146,14 @@ fn main() {
             .collect();
         println!("| engine | recall@5 |");
         println!("| ------ | -------: |");
-        println!("| wordtree (suggestions) | {} |", pct(mean(&wt_sugg_recall)));
-        println!("| wordtree (completions) | {} |", pct(mean(&wt_comp_recall)));
+        println!(
+            "| wordtree (suggestions) | {} |",
+            pct(mean(&wt_sugg_recall))
+        );
+        println!(
+            "| wordtree (completions) | {} |",
+            pct(mean(&wt_comp_recall))
+        );
         println!("| pruning-trie | {} |", pct(mean(&pt_recall)));
         println!();
     }

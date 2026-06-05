@@ -32,14 +32,20 @@ fn substitution_start_middle_end() {
 #[test]
 fn deletion_start_middle_end() {
     assert!(corrects(WORDS, "lla", "alla"), "delete first char");
-    assert!(corrects(WORDS, "ala", "alla"), "delete a middle char (the headline bug)");
+    assert!(
+        corrects(WORDS, "ala", "alla"),
+        "delete a middle char (the headline bug)"
+    );
     assert!(corrects(WORDS, "all", "alla"), "delete last char");
 }
 
 #[test]
 fn insertion_start_middle_end() {
     assert!(corrects(WORDS, "xalla", "alla"), "insert at start");
-    assert!(corrects(WORDS, "alxla", "alla"), "insert in the middle (was 0% recall)");
+    assert!(
+        corrects(WORDS, "alxla", "alla"),
+        "insert in the middle (was 0% recall)"
+    );
     assert!(corrects(WORDS, "allax", "alla"), "insert at end");
 }
 
@@ -73,8 +79,14 @@ fn multiple_candidates_all_returned_within_cap() {
 
 #[test]
 fn distance_two_is_excluded() {
-    assert!(!corrects(WORDS, "alxx", "alla"), "two substitutions must not correct");
-    assert!(!corrects(WORDS, "axlxa", "alla"), "two insertions must not correct");
+    assert!(
+        !corrects(WORDS, "alxx", "alla"),
+        "two substitutions must not correct"
+    );
+    assert!(
+        !corrects(WORDS, "axlxa", "alla"),
+        "two insertions must not correct"
+    );
 }
 
 #[test]
@@ -86,8 +98,14 @@ fn query_longer_than_every_word() {
 #[test]
 fn query_shorter_than_words() {
     let tree = tree_of(&[("alla", 900, 1)]);
-    assert!(!corrections(&tree, "al").iter().any(|w| w == "alla"), "distance 2 excluded");
-    assert!(corrections(&tree, "all").iter().any(|w| w == "alla"), "distance 1 included");
+    assert!(
+        !corrections(&tree, "al").iter().any(|w| w == "alla"),
+        "distance 2 excluded"
+    );
+    assert!(
+        corrections(&tree, "all").iter().any(|w| w == "alla"),
+        "distance 1 included"
+    );
 }
 
 #[test]
@@ -100,15 +118,24 @@ fn empty_and_single_char_queries_have_no_spellings() {
 #[test]
 fn repeated_letters() {
     let tree = tree_of(&[("aaaa", 900, 1), ("aaab", 800, 2)]);
-    assert!(corrections(&tree, "aaa").iter().any(|w| w == "aaaa"), "delete from a run");
-    assert!(corrections(&tree, "aaaaa").iter().any(|w| w == "aaaa"), "insert into a run");
+    assert!(
+        corrections(&tree, "aaa").iter().any(|w| w == "aaaa"),
+        "delete from a run"
+    );
+    assert!(
+        corrections(&tree, "aaaaa").iter().any(|w| w == "aaaa"),
+        "insert into a run"
+    );
 }
 
 #[test]
 fn unicode_substitution_is_one_edit() {
     let tree = tree_of(&[("allé", 900, 1), ("alla", 800, 2)]);
     let got = corrections(&tree, "allx");
-    assert!(got.contains(&"allé".to_string()), "é is one substitution: {got:?}");
+    assert!(
+        got.contains(&"allé".to_string()),
+        "é is one substitution: {got:?}"
+    );
     assert!(got.contains(&"alla".to_string()));
 }
 
@@ -117,7 +144,10 @@ fn unicode_deletion_is_one_edit() {
     // A 4-char query (cap 3) so the single deletion candidate is not capped out.
     let tree = tree_of(&[("förra", 900, 1)]);
     let got = corrections(&tree, "frra");
-    assert!(got.contains(&"förra".to_string()), "deleting ö is one edit: {got:?}");
+    assert!(
+        got.contains(&"förra".to_string()),
+        "deleting ö is one edit: {got:?}"
+    );
 }
 
 #[test]
@@ -125,5 +155,9 @@ fn nfc_normalization_makes_allmanhet_a_substitution() {
     // The Builder NFC-normalizes input; "allmanhet" differs from the stored
     // "allmänhet" by a single ä->a substitution.
     let tree = tree_of(&[("allmänhet", 900, 1)]);
-    assert!(corrections(&tree, "allmanhet").iter().any(|w| w == "allmänhet"));
+    assert!(
+        corrections(&tree, "allmanhet")
+            .iter()
+            .any(|w| w == "allmänhet")
+    );
 }
