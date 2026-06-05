@@ -113,10 +113,23 @@ fn main() {
             "### Autocomplete — top-5 agreement with the frequency oracle ({PREFIXES} prefixes)\n"
         );
         let prefixes = prefix_query_set(&ds, PREFIXES);
-        let wt_recall: Vec<f64> = prefixes
+        // The combined suggestions() spends part of its 6-result budget on fuzzy
+        // spellings, so its completions are diluted; completions() gives the whole
+        // budget to extensions — the fair autocomplete path. Show both.
+        let wt_sugg_recall: Vec<f64> = prefixes
             .iter()
             .map(|p| {
                 let got: Vec<String> = wordtree_suggest_words(&tree, &ds, p)
+                    .into_iter()
+                    .take(5)
+                    .collect();
+                recall(&got, &ground_truth_prefix(&ds, p, 5))
+            })
+            .collect();
+        let wt_comp_recall: Vec<f64> = prefixes
+            .iter()
+            .map(|p| {
+                let got: Vec<String> = wordtree_complete_words(&tree, &ds, p)
                     .into_iter()
                     .take(5)
                     .collect();
@@ -133,7 +146,8 @@ fn main() {
             .collect();
         println!("| engine | recall@5 |");
         println!("| ------ | -------: |");
-        println!("| wordtree | {} |", pct(mean(&wt_recall)));
+        println!("| wordtree (suggestions) | {} |", pct(mean(&wt_sugg_recall)));
+        println!("| wordtree (completions) | {} |", pct(mean(&wt_comp_recall)));
         println!("| pruning-trie | {} |", pct(mean(&pt_recall)));
         println!();
     }

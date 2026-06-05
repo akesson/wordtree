@@ -137,7 +137,10 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
             // it. Using the full-word distance (not the prefix distance `min`)
             // avoids seeding shallow high-frequency nodes (a single corrected
             // letter) that would flood unrelated completions.
-            if dist <= MAX_DIST && Some(cursor.max_child_percentile()) > altpaths.min_value() {
+            if altpaths.capacity() > 0
+                && dist <= MAX_DIST
+                && Some(cursor.max_child_percentile()) > altpaths.min_value()
+            {
                 altpaths.add(AltPath::from(&cursor, path.clone()));
             }
 

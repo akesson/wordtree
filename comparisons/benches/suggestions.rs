@@ -43,6 +43,9 @@ fn bench_fuzzy(c: &mut Criterion) {
             group.bench_function(format!("wordtree {label} {q}"), |b| {
                 b.iter(|| tree.suggestions(black_box(q), |_| true))
             });
+            group.bench_function(format!("wordtree-corrections {label} {q}"), |b| {
+                b.iter(|| tree.corrections(black_box(q), |_| true))
+            });
             group.bench_function(format!("symspell {label} {q}"), |b| {
                 b.iter(|| symspell_suggest_words(&sym, black_box(q)))
             });
@@ -74,6 +77,9 @@ fn bench_autocomplete(c: &mut Criterion) {
 
         group.bench_function(format!("wordtree {prefix}"), |b| {
             b.iter(|| tree.suggestions(black_box(prefix.as_str()), |_| true))
+        });
+        group.bench_function(format!("wordtree-complete {prefix}"), |b| {
+            b.iter(|| tree.completions(black_box(prefix.as_str()), |_| true))
         });
         group.bench_function(format!("pruning-trie {prefix}"), |b| {
             b.iter(|| pruning_prefix_words(&trie, black_box(prefix.as_str()), 5))

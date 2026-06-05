@@ -245,6 +245,27 @@ pub fn wordtree_suggest_words(tree: &wordtree::Tree, ds: &Dataset, q: &str) -> V
         .collect()
 }
 
+/// wordtree prefix completions only (`completions()`), decoded to words. The
+/// completion-only path runs no fuzzy walk, so this is the fair counterpart to
+/// the pruning-radix-trie's top-k prefix lookup.
+pub fn wordtree_complete_words(tree: &wordtree::Tree, ds: &Dataset, q: &str) -> Vec<String> {
+    use wordtree::TreeFn;
+    tree.completions(q, |_| true)
+        .into_iter()
+        .filter_map(|s| ds.word_of_expr(s.expr_index).map(|w| w.to_string()))
+        .collect()
+}
+
+/// wordtree fuzzy corrections only (`corrections()`), decoded to words — the
+/// spell-check path (Matching + Spelling) with no completion sweep.
+pub fn wordtree_correct_words(tree: &wordtree::Tree, ds: &Dataset, q: &str) -> Vec<String> {
+    use wordtree::TreeFn;
+    tree.corrections(q, |_| true)
+        .into_iter()
+        .filter_map(|s| ds.word_of_expr(s.expr_index).map(|w| w.to_string()))
+        .collect()
+}
+
 /// SymSpell lookup at distance 1, all candidates (already frequency-ranked).
 pub fn symspell_suggest_words(
     sym: &symspell::SymSpell<symspell::UnicodeStringStrategy>,

@@ -14,6 +14,8 @@ lazy_static! {
     static ref SV_TREE: &'static Tree = &SV.0;
 }
 
+mod complete;
+mod corrections;
 mod invariants;
 mod oracle;
 mod regression;

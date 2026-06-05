@@ -2,7 +2,7 @@
 
 > Everything here is reproducible from this repo:
 > ```
-> cargo run -p comparisons --bin quality --release   # suggestion quality tables
+> cargo run -p comparisons --bin quality --release   # autocomplete + correction quality tables
 > cargo run -p comparisons --bin size    --release   # size + RAM table
 > cargo bench -p comparisons                         # latency (criterion)
 > cargo test  -p comparisons                         # correctness gate + verified findings
@@ -13,24 +13,26 @@
 ## What this measures
 
 wordtree folds three jobs into *one* compact, memory-mappable structure: a
-browsable folder index (`path_of`), exact word→`expr_index` lookup (`index_of`),
-and frequency-aware fuzzy suggestions (`suggestions`). Almost no single
-alternative does all three, so each job is measured against the best specialist
-*for that job*, on the same data. The question is not whether wordtree wins a
-single axis (it generally does not) but what folding three jobs into one
-mmap-able file costs on each.
+**browsable index** (`path_of`), **exact lookup** (`index_of`), and **typo-tolerant
+autocomplete** (`suggestions`) — autocomplete that also corrects typos. That third job
+has two halves, each with its own specialist, so it is measured as two tasks:
+**autocomplete** (`completions`, prefix completion) and **spelling correction**
+(`corrections`, fuzzy matching). Almost no single alternative does all three jobs, so
+each is measured against the best specialist *for that task*, on the same data. The
+question is not whether wordtree wins a single axis (it generally does not) but what
+folding everything into one mmap-able file costs on each.
 
 ## Engines compared
 
 | engine | job(s) | notes |
 | --- | --- | --- |
-| **wordtree** | lookup + path + suggest + autocomplete | the subject; zero-copy via rkyv; `suggestions` returns both fuzzy corrections and prefix completions |
-| **[fst](https://crates.io/crates/fst)** (BurntSushi) | lookup + fuzzy | ordered FSA/transducer, mmap, Levenshtein automaton |
-| **[symspell](https://crates.io/crates/symspell)** | suggest | Symmetric-Delete spelling correction, frequency-ranked |
+| **wordtree** | exact lookup + browsable index + typo-tolerant autocomplete | the subject; zero-copy via rkyv; `suggestions()` merges autocomplete + spelling correction, or call `completions()` / `corrections()` for one half |
+| **[fst](https://crates.io/crates/fst)** (BurntSushi) | exact lookup + spelling correction | ordered FSA/transducer, mmap, Levenshtein automaton |
+| **[symspell](https://crates.io/crates/symspell)** | spelling correction | Symmetric-Delete spelling correction, frequency-ranked |
 | **[pruning_radix_trie](https://crates.io/crates/pruning_radix_trie)** | autocomplete | Wolf Garbe's freq-ranked prefix trie (wordtree's pruning is modelled on it) |
-| **[boomphf](https://crates.io/crates/boomphf)** | lookup | minimal perfect hash map (`BoomHashMap`, stores keys) |
-| **HashMap / sorted-Vec** | lookup | naive baselines |
-| **brute force** ([strsim](https://crates.io/crates/strsim)) | suggest | DL≤1 scan; the oracle + a baseline |
+| **[boomphf](https://crates.io/crates/boomphf)** | exact lookup | minimal perfect hash map (`BoomHashMap`, stores keys) |
+| **HashMap / sorted-Vec** | exact lookup | naive baselines |
+| **brute force** ([strsim](https://crates.io/crates/strsim)) | spelling correction | DL≤1 scan; the oracle + a baseline |
 
 ## Method & fairness
 
@@ -43,8 +45,8 @@ mmap-able file costs on each.
   unique — **en 638,545 words, sv 113,220** (word count == expr count). Tokens
   are kept verbatim, including non-words like `!Bang!` and `%SYSTEMROOT%`. fst and
   boomphf require unique keys, which holds here.
-- **The fuzzy task is normalised**: "given a query string, return dictionary
-  words within Damerau-Levenshtein ≤1, frequency-ranked." Every engine gets the
+- **The spelling-correction task is normalised**: "given a query string, return
+  dictionary words within Damerau-Levenshtein ≤1, frequency-ranked." Every engine gets the
   *same literal typo string* (no `_` placeholder), and symspell/fst are pinned to
   edit distance 1 to match wordtree.
 - Typo queries are generated deterministically: take the highest-frequency clean
@@ -53,7 +55,7 @@ mmap-able file costs on each.
 
 ---
 
-## 1. Suggestion quality
+## 1. Autocomplete & correction quality
 
 The most revealing axis, and the source of two findings worth knowing. Recall =
 did the engine return the intended word (the one the typo was derived from). The
@@ -61,32 +63,7 @@ brute-force DL≤1 set is the oracle (100% by definition).
 
 ### en
 
-**Typo correction — recall of the intended word, by edit kind**
-
-| engine | substitute | transpose | delete | insert | overall |
-| ------ | ---------: | --------: | -----: | -----: | ------: |
-| wordtree | 100% | 100% | 96% | 100% | 99% |
-| symspell | 100% | 100% | 100% | 100% | 100% |
-| fst-lev | 100% | 0% | 100% | 100% | 75% |
-
-**Suggestion-set shape (avg over 200 typo queries)**
-
-| engine | avg results returned | avg recall of full DL≤1 set |
-| ------ | -------------------: | --------------------------: |
-| wordtree | 4.9 | 78% |
-| symspell | 5.6 | 100% |
-| fst-lev | 5.2 | 85% |
-
-**Autocomplete — top-5 agreement with the frequency oracle (25 prefixes)**
-
-| engine | recall@5 |
-| ------ | -------: |
-| wordtree | 63% |
-| pruning-trie | 74% |
-
-### sv
-
-**Typo correction — recall of the intended word, by edit kind**
+**Spelling correction — recall of the intended word, by edit kind**
 
 | engine | substitute | transpose | delete | insert | overall |
 | ------ | ---------: | --------: | -----: | -----: | ------: |
@@ -94,7 +71,33 @@ brute-force DL≤1 set is the oracle (100% by definition).
 | symspell | 100% | 100% | 100% | 100% | 100% |
 | fst-lev | 100% | 0% | 100% | 100% | 75% |
 
-**Suggestion-set shape (avg over 200 typo queries)**
+**Correction-set shape (avg over 200 typo queries)**
+
+| engine | avg results returned | avg recall of full DL≤1 set |
+| ------ | -------------------: | --------------------------: |
+| wordtree | 4.8 | 78% |
+| symspell | 5.6 | 100% |
+| fst-lev | 5.2 | 85% |
+
+**Autocomplete — top-5 agreement with the frequency oracle (25 prefixes)**
+
+| engine | recall@5 |
+| ------ | -------: |
+| wordtree (suggestions) | 64% |
+| wordtree (completions) | 72% |
+| pruning-trie | 74% |
+
+### sv
+
+**Spelling correction — recall of the intended word, by edit kind**
+
+| engine | substitute | transpose | delete | insert | overall |
+| ------ | ---------: | --------: | -----: | -----: | ------: |
+| wordtree | 100% | 100% | 100% | 100% | 100% |
+| symspell | 100% | 100% | 100% | 100% | 100% |
+| fst-lev | 100% | 0% | 100% | 100% | 75% |
+
+**Correction-set shape (avg over 200 typo queries)**
 
 | engine | avg results returned | avg recall of full DL≤1 set |
 | ------ | -------------------: | --------------------------: |
@@ -106,18 +109,18 @@ brute-force DL≤1 set is the oracle (100% by definition).
 
 | engine | recall@5 |
 | ------ | -------: |
-| wordtree | 68% |
+| wordtree (suggestions) | 68% |
+| wordtree (completions) | 85% |
 | pruning-trie | 93% |
 
 ### Finding A — wordtree corrects every single-edit typo, indels included
 
 wordtree corrects all four single-character edit kinds at edit distance 1:
 substitution and transposition (100%) **and** the length-changing edits,
-deletion and insertion. On sv it matches symspell's per-kind recall exactly
-(100% across the board); on en it reaches 99% overall, the only gap being a few
-deletions (96%) where the intended word is crowded out of the top-k by
-higher-frequency neighbours within distance 1 — a ranking/cap effect, not a
-missing capability.
+deletion and insertion. It matches symspell's per-kind recall exactly — 100%
+across the board on both en and sv. (The result is still a small frequency-capped
+top-k, so in principle a correct word could be crowded out by higher-frequency
+neighbours within distance 1; on this sample that does not happen.)
 
 Verified two ways: the per-kind table above, and an isolated three-word
 reproduction in [`tests/correctness.rs`](tests/correctness.rs) of the README's
@@ -145,8 +148,10 @@ wordtree is a **small, frequency-ranked, as-you-type suggester** (≈3–4 resul
 capped at ~3 spelling corrections in `src/search/mod.rs`), not an exhaustive
 corrector. symspell is **exhaustive** (100% recall of the DL≤1 set) and the right
 tool when you must find every correction, indels included. For autocomplete the
-pruning trie tracks the frequency oracle better than wordtree's extension
-suggestions (93% vs 70% on sv) — it is purpose-built for top-k prefix completion.
+autocomplete-only `completions()` call tracks the frequency oracle far better than
+the combined `suggestions()` — 85% vs 68% recall@5 on sv — because it spends the
+whole result budget on extensions instead of sharing it with spelling
+corrections; the purpose-built pruning trie is still best (93%).
 
 ---
 
@@ -183,7 +188,7 @@ fst is the clear size winner (6.7 MiB serialized / 10 MiB live en) — it minimi
 shared **prefixes and suffixes** (DAWG-like). The key-storing structures cluster
 together: sorted-Vec 25, **wordtree 26**, boomphf 34, HashMap 39 MiB (en). So
 wordtree is competitive with the naive key-storing maps and ~4× *larger* than fst,
-which does exact lookup *and* fuzzy in that smaller space. wordtree shares
+which does exact lookup *and* spelling correction in that smaller space. wordtree shares
 prefixes only and stores a 12-byte node per character, so its "size-optimised"
 framing holds against a naive trie but **not** against an FSA. pruning-trie (79)
 and symspell (300) are in another league entirely.
@@ -201,7 +206,7 @@ Two more honest notes:
 - **symspell trades memory for recall**: 300 MiB (en) for its delete-dictionary,
   ~11× wordtree and ~45× fst, with no compact serialization.
 - **boomphf** (`BoomHashMap`) stores the keys, so it can reject non-members; its
-  34 MiB therefore includes the keys. It is lookup-only (no prefix/fuzzy/folders).
+  34 MiB therefore includes the keys. It is exact-lookup-only (no autocomplete/correction/folders).
 
 ---
 
@@ -225,41 +230,52 @@ membership check plus a fetch). wordtree is the **slowest** here (~80–120 ns,
 middle. All are tens of ns — fine in absolute terms, but exact lookup is not a
 reason to pick wordtree.
 
-### Fuzzy suggestions (edit distance 1)
+### Spelling correction (edit distance 1)
 
 A *substitution* typo and a *deletion* typo — both now corrected by every engine
-(Finding A). Brute force is the full DL≤1 scan.
+(Finding A). `wordtree (corrections)` is the correction-only `corrections()` call; brute
+force is the full DL≤1 scan.
 
-| case | wordtree | symspell | fst-lev | brute force |
-| ---- | -------: | -------: | ------: | ----------: |
-| en sub `abxut` | 96.9 µs | **1.5 µs** | 125.6 µs | 97.7 ms |
-| en del `abut` | 90.3 µs | **8.1 µs** | 127.0 µs | 86.9 ms |
-| sv sub `apxil` | 50.6 µs | **1.0 µs** | 74.3 µs | 18.2 ms |
-| sv del `apil` | 48.0 µs | **2.4 µs** | 70.7 µs | 16.7 ms |
+| case | wordtree (suggestions) | wordtree (corrections) | symspell | fst-lev | brute force |
+| ---- | ---------------------: | ---------------------: | -------: | ------: | ----------: |
+| en sub `abxut` | 98.4 µs | 97.8 µs | **1.5 µs** | 124.8 µs | 102.3 ms |
+| en del `abut` | 91.7 µs | 90.7 µs | **8.2 µs** | 125.2 µs | 91.8 ms |
+| sv sub `apxil` | 51.2 µs | 51.2 µs | **1.0 µs** | 74.4 µs | 19.2 ms |
+| sv del `apil` | 48.8 µs | 47.8 µs | **2.4 µs** | 70.2 µs | 17.2 ms |
+
+`corrections()` (correction-only) costs essentially the same as the combined
+`suggestions()` here — the Damerau walk is the cost, and a typo has no exact prefix
+to complete, so the autocomplete sweep adds nothing.
 
 ### Autocomplete (prefix top-5)
 
-| case | wordtree | pruning-trie |
-| ---- | -------: | -----------: |
-| en `co` | 62.6 µs | **1.3 µs** |
-| sv `ko` | 32.0 µs | **1.3 µs** |
+`suggestions()` also runs the edit-distance walk; `completions()` is the autocomplete-only
+call — the direct counterpart to the pruning trie's top-k.
 
-### Finding D — suggestion latency: well behind symspell, ahead of fst-lev
+| case | wordtree (suggestions) | wordtree (completions) | pruning-trie |
+| ---- | ---------------------: | ---------------------: | -----------: |
+| en `co` | 61.6 µs | 2.0 µs | **1.2 µs** |
+| sv `ko` | 31.7 µs | **1.2 µs** | 1.3 µs |
 
-symspell is the clear winner at ~1–8 µs. wordtree (≈50 µs sv, ≈95 µs en) is
-**~50–65× slower than symspell** on substitutions; symspell also returns the
-*complete* DL≤1 set whereas wordtree returns a short, frequency-capped list, so
-for exhaustive spell-checking symspell wins outright.
+### Finding D — correction latency trails symspell; autocomplete matches the pruning trie
 
-Against fst-lev (≈70–130 µs) wordtree is **~1.3–1.5× faster** on these queries
-while correcting the same edit kinds *plus* transpositions (fst-lev is plain
-Levenshtein). For autocomplete, pruning_radix_trie (≈1.3 µs) is **~25–50× faster**
-and more accurate.
+**Spelling correction.** symspell is the clear winner at ~1–8 µs. wordtree (≈50 µs sv,
+≈98 µs en) is **~50–65× slower than symspell** on substitutions; against fst-lev
+(≈70–125 µs) it is **~1.3–1.5× faster** while also correcting transpositions (fst-lev is
+plain Levenshtein). The correction-only `corrections()` call costs essentially the same
+as the combined `suggestions()` (98 vs 98 µs en, 51 vs 51 µs sv): the Damerau walk is the
+dominant cost, and a typo has no exact prefix for the autocomplete sweep to extend.
 
-The residual cost is structural: `suggestions` runs a breadth-first edit-distance
-walk — one small dynamic-programming row per visited node — plus a frequency
-search over the frontier on every call, whereas symspell does a handful of hash
-lookups against precomputed deletes and the pruning trie does a pruned top-k
+**Autocomplete.** `suggestions()` runs the edit-distance walk on every call, even for a
+clean prefix that only needs completion, so it is the wrong call to race against a pure
+top-k completer. The autocomplete-only `completions()` call is the direct equivalent: it
+skips the walk and lands at **~2.0 µs (en) / ~1.2 µs (sv)**, at parity with the pruning
+trie (~1.2–1.3 µs) and faster on sv. The higher `suggestions()` figure is the bundled
+correction work, not the autocomplete.
+
+The split is structural — the same mechanism behind Finding A: `corrections()` walks the
+trie one DP row per visited node, whereas symspell does a handful of hash lookups against
+precomputed deletes; `completions()`, like the pruning trie, is just a pruned top-k
 descent.
 
 ---
@@ -270,33 +286,34 @@ On **every individual axis, a specialist beats wordtree**:
 
 - **Exact lookup:** HashMap and boomphf are fastest; wordtree is the slowest
   (~10–14× HashMap), though still tens of ns. Not a reason to choose wordtree.
-- **Size:** fst does lookup+fuzzy in ~4× less space; wordtree is mid-pack with the
-  naive key-storing maps. wordtree's bytes buy inline frequency + folders +
-  zero-copy mmap.
-- **Fuzzy suggestions:** wordtree now corrects all four single-edit kinds
+- **Size:** fst does exact lookup + spelling correction in ~4× less space; wordtree is
+  mid-pack with the naive key-storing maps. wordtree's bytes buy inline frequency +
+  folders + zero-copy mmap.
+- **Spelling correction:** wordtree now corrects all four single-edit kinds
   (Finding A), but symspell is still ~50–65× faster and returns the *complete*
   DL≤1 set, whereas wordtree returns a short, frequency-capped list — so for
   exhaustive spell-checking symspell wins. wordtree is ~1.3–1.5× faster than
   fst-lev, and unlike fst's plain-Levenshtein automaton it also corrects
   transpositions.
-- **Autocomplete:** pruning_radix_trie is ~25–50× faster and tracks the frequency
-  oracle better.
+- **Autocomplete:** with the autocomplete-only `completions()` call wordtree is at
+  parity with pruning_radix_trie (~1–2 µs; faster on sv). The pruning trie still
+  tracks the frequency oracle better (recall@5 93% vs 85% sv). The combined
+  `suggestions()` is far slower here only because it also runs the correction walk.
 
-**The case for wordtree is the *combination*, not any single axis**: a browsable
-folder index + frequency + as-you-type suggestions in **one** structure that
-loads by zero-copy mmap with no parse/build step (`live == serialized`), returning
-a deliberately short, frequency-ranked, single-edit-tolerant list (substitutions,
-transpositions and indels). If you need all three jobs from one mmappable file and
-can live with a small frequency-capped suggestion set rather than the exhaustive
-DL≤1 set, it is a reasonable single dependency. If you need any one job on its
-own — or low suggestion latency, or minimum size — reach for the specialist.
+**The case for wordtree is the *combination*, not any single axis**: a browsable index +
+frequency + typo-tolerant autocomplete in **one** structure that loads by zero-copy mmap
+with no parse/build step (`live == serialized`), returning a deliberately short,
+frequency-ranked, single-edit-tolerant list (substitutions, transpositions and indels).
+If you need all three jobs from one mmappable file and can live with that short set rather
+than the exhaustive DL≤1 set, it is a reasonable single dependency. If you need any one
+job on its own — or low correction latency, or minimum size — reach for the specialist.
 
 ### Caveats & honesty notes
 
 - All engines run on the **same** lists, parsed with `quoting(false)`; the lists
   are already unique, so the keep-first dedup applied uniformly is a no-op.
 - **boomphf** uses `BoomHashMap` (stores keys), so it rejects non-members and its
-  size includes the keys; it is lookup-only. (A bare `Mphf` would be far smaller
+  size includes the keys; it is exact-lookup-only. (A bare `Mphf` would be far smaller
   but could not reject non-members.)
 - **fst-lev** ranking uses a side percentile table (counted in fairness, not in
   the reported fst size) and is plain Levenshtein (no transposition).

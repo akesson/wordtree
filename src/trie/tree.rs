@@ -46,9 +46,29 @@ pub trait TreeFn {
         self.root().index_of(word)
     }
 
+    /// Exact match, fuzzy corrections and completions merged into one ranked
+    /// list — the combined as-you-type call. Use [`Self::completions`] or
+    /// [`Self::corrections`] to pay for only one job.
     fn suggestions<F: Fn(u32) -> bool>(&self, search: &str, is_candidate: F) -> Vec<Suggestion> {
         self.root()
             .suggestions_with_ledger(search, is_candidate, &mut NoLedger::default())
+    }
+
+    /// Frequency-ranked completions of `prefix` (plus the exact match when
+    /// `prefix` is itself a word). Completion-only: no fuzzy correction is run,
+    /// so a query that is not an exact prefix of any word returns nothing. Much
+    /// cheaper than [`Self::suggestions`] when only autocomplete is wanted.
+    fn completions<F: Fn(u32) -> bool>(&self, prefix: &str, is_candidate: F) -> Vec<Suggestion> {
+        self.root()
+            .completions_with_ledger(prefix, is_candidate, &mut NoLedger::default())
+    }
+
+    /// Fuzzy spelling corrections of `search` within the configured edit
+    /// distance (plus the exact match when `search` is itself a word).
+    /// Correction-only: no completions are appended.
+    fn corrections<F: Fn(u32) -> bool>(&self, search: &str, is_candidate: F) -> Vec<Suggestion> {
+        self.root()
+            .corrections_with_ledger(search, is_candidate, &mut NoLedger::default())
     }
 }
 
