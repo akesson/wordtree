@@ -13,8 +13,9 @@ A compact, cache-friendly trie for storing large word lists with three jobs in m
   substitution, transposition, insertion or deletion — at Damerau-Levenshtein distance
   ≤ 1). Either half can be requested on its own.
 
-The tree is stored as a width-first array of 12-byte (96-bit) nodes and can be serialised
-with [`rkyv`](https://rkyv.org) for zero-copy, memory-mapped access. See the
+The tree is stored as a width-first array of 8-byte (64-bit) nodes, with the sparse
+per-word data (frequency and expression index) held in compact side tables, and can be
+serialised with [`rkyv`](https://rkyv.org) for zero-copy, memory-mapped access. See the
 [deep dive](#word-tree) below for the data structure and edit-distance design;
 [`comparisons/REPORT.md`](comparisons/REPORT.md) benchmarks it against specialist crates.
 
@@ -111,8 +112,8 @@ These languages are often used with special entry forms. They are currently not 
 
 ## Node layout
 
-Each node is a fixed 12-byte (96-bit) record — four byte-aligned 3-byte groups, so a tree
-read from disk needs no type-casting or transformation (zero-copy mmap):
+Each node is a fixed 8-byte (64-bit) record, so a tree read from disk needs no
+type-casting or transformation (zero-copy mmap):
 
 | field                | bits   | comment                                                              |
 | -------------------- | ------ | -------------------------------------------------------------------- |
@@ -120,14 +121,32 @@ read from disk needs no type-casting or transformation (zero-copy mmap):
 | node_char            | 24     | UTF-32 codepoint (low 3 bytes used)                                  |
 | is_folder            | 1      |                                                                      |
 | is_last_sibling      | 1      |                                                                      |
-| percentile           | 10     | frequency rank of this word, 0–1000                                  |
 | max_child_percentile | 10     | max percentile in the subtree — drives the pruning walk (below)      |
-| expr_index           | 24     |                                                                      |
-| (spare)              | 2      |                                                                      |
-| **TOT**              | **96** | = 12 bytes                                                           |
+| (spare)              | 4      |                                                                      |
+| **TOT**              | **64** | = 8 bytes                                                            |
 
 `max_child_percentile` powers the [pruning-radix-trie](https://towardsdatascience.com/the-pruning-radix-trie-a-radix-trie-on-steroids-412807f77abc)
-walk: a subtree whose best percentile can't beat the current top-k is skipped.
+walk: a subtree whose best percentile can't beat the current top-k is skipped. It stays
+inline because it is read on *every* node during the walk.
+
+### Per-word side tables
+
+A word's own `percentile` (frequency, 0–1000) and 24-bit `expr_index` only exist on the
+~28% of nodes that terminate a word, so storing them inline would waste 5 bytes on every
+internal node. Instead they live in three side arrays, also part of the zero-copy mmap:
+
+| table        | size                          | role                                                      |
+| ------------ | ----------------------------- | --------------------------------------------------------- |
+| `word_bits`  | 1 bit / node                  | marks which nodes are words                                |
+| `rank_index` | 1× u32 / 64-bit word          | cumulative word count — answers `rank(node) → slot` in O(1)|
+| `values`     | 5 bytes / **word** (u16 + u24)| the `(percentile, expr_index)` pair for each word         |
+
+A word node at position `i` finds its value at `values[rank(i)]` — the number of word
+nodes before it. The bit probe is on the hot browse/descent path; the rank query only
+fires when a per-word value is actually consumed (an exact `index_of`, or a kept
+suggestion). On English this trims the structure from ~26.5 MiB (12-byte nodes) to
+~21.1 MiB (8-byte nodes + side tables), a ~20% reduction with no loss of function — see
+[`comparisons/REPORT.md`](comparisons/REPORT.md) §2.
 
 ## Edit distance
 
@@ -137,7 +156,7 @@ It is evaluated incrementally as the trie is walked: one small dynamic-programmi
 
 ## Benchmarks
 
-Building the full tree from the bundled TSV takes roughly 384 ms (English, ~638k words)
-and 64 ms (Swedish, ~113k words) on an Apple M4 Pro. For comparative latency, size and
+Building the full tree from the bundled TSV takes roughly 405 ms (English, ~638k words)
+and 68 ms (Swedish, ~113k words) on an Apple M4 Pro. For comparative latency, size and
 suggestion-quality benchmarks against specialist crates (fst, symspell,
 pruning_radix_trie, boomphf), see [`comparisons/REPORT.md`](comparisons/REPORT.md).

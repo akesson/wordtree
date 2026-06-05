@@ -1,23 +1,15 @@
-use super::data::TwoBoolTwoU10;
-use super::expr::ExprIndex;
+use super::data::Info;
 use crate::builder::NodeData;
 
 pub struct Node([u8; Self::BYTES_PER_NODE]);
 
 impl Node {
-    pub const BYTES_PER_NODE: usize = 12;
+    pub const BYTES_PER_NODE: usize = 8;
 
     pub fn from_data(node: &NodeData, is_last_sibling: bool) -> Self {
         let mut slf = Self::new();
         slf.set_node_char(node.node_char);
-        slf.set_info(
-            node.is_folder,
-            is_last_sibling,
-            node.percentile,
-            node.max_child_percentile,
-        );
-
-        slf.set_expr_index(ExprIndex::new(node.expr_index.map(|v| v.get())));
+        slf.set_info(node.is_folder, is_last_sibling, node.max_child_percentile);
         slf
     }
 
@@ -38,24 +30,10 @@ impl Node {
         self.0[5] = bytes[2];
     }
 
-    pub fn set_info(
-        &mut self,
-        is_folder: bool,
-        is_last_sibling: bool,
-        percentile: u16,
-        max_child_percentile: u16,
-    ) {
-        let val = TwoBoolTwoU10::new(is_folder, is_last_sibling, percentile, max_child_percentile);
+    pub fn set_info(&mut self, is_folder: bool, is_last_sibling: bool, max_child_percentile: u16) {
+        let val = Info::new(is_folder, is_last_sibling, max_child_percentile);
         self.0[6] = val.b1;
         self.0[7] = val.b2;
-        self.0[8] = val.b3;
-    }
-
-    pub fn set_expr_index(&mut self, expr_index: ExprIndex) {
-        let bytes = check_3_bytes(*expr_index.inner(), "expr_index");
-        self.0[9] = bytes[0];
-        self.0[10] = bytes[1];
-        self.0[11] = bytes[2];
     }
 
     #[cfg(test)]
@@ -82,60 +60,58 @@ fn check_3_bytes(val: u32, name: &'static str) -> [u8; 4] {
 #[cfg(test)]
 use super::NodeRef;
 
+/// Reads back only the node-resident fields (own `percentile`/`expr_index` live
+/// in the side `values` table, not the node), so empty side arrays suffice.
 #[cfg(test)]
-fn new_node(vals: (u32, char, bool, u16, bool, u16, Option<u32>)) -> Node {
-    let mut node = Node::new();
-    node.set_first_child_node_pos(vals.0);
-    node.set_node_char(vals.1);
-    node.set_info(vals.2, vals.4, vals.5, vals.3);
-
-    node.set_expr_index(ExprIndex::new(vals.6));
-    node
-}
-
-#[cfg(test)]
-fn node_data(vec: Vec<u8>, pos: usize) -> (u32, char, bool, u16, bool, u16, Option<u32>) {
-    let slice = NodeRef::new(&vec, pos);
+fn node_fields(vec: &Vec<u8>, pos: usize) -> (u32, char, bool, bool, u16) {
+    let empty: Vec<u8> = Vec::new();
+    let cursor = NodeRef::new(vec, &empty, &empty, &empty, pos);
     (
-        slice.first_child_node_pos(),
-        slice.char(),
-        slice.is_folder(),
-        slice.percentile(),
-        slice.is_last_sibling(),
-        slice.max_child_percentile(),
-        slice.expr_index(),
+        cursor.first_child_node_pos(),
+        cursor.char(),
+        cursor.is_folder(),
+        cursor.is_last_sibling(),
+        cursor.max_child_percentile(),
     )
 }
 
 #[cfg(test)]
-fn roundtrip(vals: (u32, char, bool, u16, bool, u16, Option<u32>)) {
+fn new_node(vals: (u32, char, bool, bool, u16)) -> Node {
+    let mut node = Node::new();
+    node.set_first_child_node_pos(vals.0);
+    node.set_node_char(vals.1);
+    node.set_info(vals.2, vals.3, vals.4);
+    node
+}
+
+#[cfg(test)]
+fn roundtrip(vals: (u32, char, bool, bool, u16)) {
     let node = new_node(vals);
     let mut buf = Vec::new();
     node.write_to(&mut buf);
 
-    assert_eq!(node_data(buf, 0), vals)
+    assert_eq!(node_fields(&buf, 0), vals)
 }
 
 #[test]
 fn codec() {
-    const MAX_NODE: u32 = 16777215 / Node::BYTES_PER_NODE as u32; // 2^24 - 1 / BYTES PER NODE
-    const MAX24B: u32 = 16777214; // 2^24 - 2
+    const MAX24B: u32 = 16777215; // 2^24 - 1
     const MAX_PCTL: u16 = 1000;
-    roundtrip((0, ' ', false, 0, false, 0, None));
-    roundtrip((MAX_NODE, 'म', true, MAX_PCTL, true, MAX_PCTL, Some(MAX24B)));
-    roundtrip((0, ' ', true, MAX_PCTL, true, MAX_PCTL, None));
+    // (first_child_pos, node_char, is_folder, is_last_sibling, max_child_percentile)
+    roundtrip((0, ' ', false, false, 0));
+    roundtrip((MAX24B, 'म', true, true, MAX_PCTL));
+    roundtrip((0, ' ', true, true, MAX_PCTL));
 }
 
 #[test]
 fn codec_w_offset() {
-    const MAX_NODE: u32 = 16777215 / Node::BYTES_PER_NODE as u32; // 2^24 - 1 / BYTES PER NODE
-    const MAX24B: u32 = 16777214; // 2^24 - 2
+    const MAX24B: u32 = 16777215; // 2^24 - 1
     const MAX_PCTL: u16 = 1000;
 
-    let vals = (MAX_NODE, '~', true, MAX_PCTL, true, MAX_PCTL, Some(MAX24B));
+    let vals = (MAX24B, '~', true, true, MAX_PCTL);
     let node = new_node(vals);
     let mut buf = vec![12; Node::BYTES_PER_NODE * 2];
     node.write_to(&mut buf);
 
-    assert_eq!(node_data(buf, 2), vals)
+    assert_eq!(node_fields(&buf, 2), vals)
 }

@@ -8,13 +8,17 @@ use std::{fmt, ops::Deref};
 #[derive(Archive, Serialize, Deserialize)]
 pub struct Tree {
     pub(crate) vec: Vec<u8>,
+    /// Side tables for the sparse per-word fields (see [`super::rank`]).
+    pub(crate) word_bits: Vec<u8>,
+    pub(crate) rank_index: Vec<u8>,
+    pub(crate) values: Vec<u8>,
 }
 
 impl TreeFn for Tree {
     type V = Vec<u8>;
 
     fn root(&self) -> NodeRef<'_, Vec<u8>> {
-        NodeRef::new(&self.vec, 0)
+        NodeRef::new(&self.vec, &self.word_bits, &self.rank_index, &self.values, 0)
     }
 }
 
@@ -22,7 +26,7 @@ impl TreeFn for ArchivedTree {
     type V = ArchivedVec<u8>;
 
     fn root(&self) -> NodeRef<'_, ArchivedVec<u8>> {
-        NodeRef::new(&self.vec, 0)
+        NodeRef::new(&self.vec, &self.word_bits, &self.rank_index, &self.values, 0)
     }
 }
 

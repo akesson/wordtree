@@ -13,7 +13,7 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
                 found.push(String::prefix_two_char(prefix, chr, '/'));
                 // found.push(String::two_char(chr, '/'));
             }
-            if self.expr_index().is_some() {
+            if self.is_word() {
                 found.push(String::prefix_two_char(prefix, chr, '.'));
             }
             if !self.is_folder()
@@ -24,7 +24,7 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
             while let Some((mut childcursor, prefix)) = to_search.pop() {
                 loop {
                     let chr = childcursor.char();
-                    if childcursor.expr_index().is_some() {
+                    if childcursor.is_word() {
                         found.push(String::prefix_two_char(&prefix, chr, '.'));
                     }
                     if !childcursor.is_folder()

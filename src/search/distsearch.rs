@@ -109,26 +109,32 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
                 String::new()
             };
 
-            // IS THE NODE A COMPLETE-WORD CORRECTION?
-            let keep = match (dist, cursor.expr_index()) {
-                // exact word — already emitted as `Matching` by `find()`
-                (0, Some(_)) => MatchKept,
-                // exact prefix node, nothing to keep
-                (0, None) => NodeMatch,
+            // IS THE NODE A COMPLETE-WORD CORRECTION? Resolve the per-word value
+            // lazily: the `is_word()` bit probe is cheap, the rank query behind
+            // `word_value()` only fires on the in-distance word arm.
+            let keep = if dist == 0 {
+                // exact word — already emitted as `Matching` by `find()`;
+                // an exact prefix node has nothing to keep.
+                if cursor.is_word() { MatchKept } else { NodeMatch }
+            } else if dist <= MAX_DIST {
                 // a complete word within edit distance — a spelling correction
-                (d, Some(expr_index)) if d <= MAX_DIST => {
-                    if Some(cursor.percentile()) > spellings.min_value() {
-                        if is_candidate(expr_index) {
-                            spellings.add(Suggestion::spelling(cursor.percentile(), expr_index));
-                            WordKept
+                match cursor.word_value() {
+                    Some((percentile, expr_index)) => {
+                        if Some(percentile) > spellings.min_value() {
+                            if is_candidate(expr_index) {
+                                spellings.add(Suggestion::spelling(percentile, expr_index));
+                                WordKept
+                            } else {
+                                CandidateDiscarded
+                            }
                         } else {
-                            CandidateDiscarded
+                            PercentileTooLow
                         }
-                    } else {
-                        PercentileTooLow
                     }
+                    None => DistTooBig,
                 }
-                _ => DistTooBig,
+            } else {
+                DistTooBig
             };
 
             // IS THE NODE AN AUTOCOMPLETE SEED? Seed when the whole query is within

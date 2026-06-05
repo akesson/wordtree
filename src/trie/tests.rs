@@ -2,9 +2,15 @@ use super::{Node, NodeRef};
 use crate::{Builder, trie::TreeFn};
 use insta::*;
 
-/// Returns (first_child_pos, node_char, source_count, is_folder, max_source_count, is_last_sibling, expr_index)
-fn read(vec: &Vec<u8>, pos: usize) -> (u32, char, u16, bool, u16, bool, Option<u32>) {
-    let cursor = NodeRef::new(vec, pos);
+/// Returns (first_child_pos, node_char, percentile, is_folder, max_child_percentile, is_last_sibling, expr_index)
+fn read(tree: &crate::Tree, pos: usize) -> (u32, char, u16, bool, u16, bool, Option<u32>) {
+    let cursor = NodeRef::new(
+        &tree.vec,
+        &tree.word_bits,
+        &tree.rank_index,
+        &tree.values,
+        pos,
+    );
     (
         cursor.first_child_node_pos(),
         cursor.char(),
@@ -36,25 +42,24 @@ fn test_serialize() {
     generator.organize_into_folders(3);
 
     let tree = generator.to_tree();
-    let vec = &tree.vec;
-    // (first_child_pos, node_char, source_count, is_folder, max_source_count, is_last_sibling, expr_index)
-    assert_eq!(read(vec, 0), (1, 'a', 0, true, 31, true, None)); // a:
-    assert_eq!(read(vec, 1), (0, 'a', 21, false, 0, false, Some(1))); // aa
-    assert_eq!(read(vec, 2), (7, 'b', 0, true, 23, false, None)); // ab:
-    assert_eq!(read(vec, 3), (9, 'd', 0, false, 24, false, None)); // ad
-    assert_eq!(read(vec, 4), (10, 'e', 0, false, 25, false, None)); // ae
-    assert_eq!(read(vec, 5), (11, 'f', 0, true, 30, false, None)); // af
-    assert_eq!(read(vec, 6), (13, 'g', 0, false, 31, true, None)); // ag
-    assert_eq!(read(vec, 7), (0, '1', 22, false, 0, false, Some(2))); // ab1
-    assert_eq!(read(vec, 8), (0, '2', 23, false, 0, true, Some(3))); // ab2
-    assert_eq!(read(vec, 9), (0, 'd', 24, false, 0, true, Some(4))); // add
-    assert_eq!(read(vec, 10), (0, 'e', 25, false, 0, true, Some(5))); // aee
-    assert_eq!(read(vec, 11), (14, 'f', 26, true, 29, false, Some(6))); // aff
-    assert_eq!(read(vec, 12), (0, 't', 30, false, 0, true, Some(10))); // aft
-    assert_eq!(read(vec, 13), (0, 'g', 31, false, 0, true, Some(11))); // agg
-    assert_eq!(read(vec, 14), (0, '1', 27, false, 0, false, Some(7))); // aff1
-    assert_eq!(read(vec, 15), (0, '2', 28, false, 0, false, Some(8))); // aff2
-    assert_eq!(read(vec, 16), (0, '3', 29, false, 0, true, Some(9))); // aff3
+    // (first_child_pos, node_char, percentile, is_folder, max_child_percentile, is_last_sibling, expr_index)
+    assert_eq!(read(&tree, 0), (1, 'a', 0, true, 31, true, None)); // a:
+    assert_eq!(read(&tree, 1), (0, 'a', 21, false, 0, false, Some(1))); // aa
+    assert_eq!(read(&tree, 2), (7, 'b', 0, true, 23, false, None)); // ab:
+    assert_eq!(read(&tree, 3), (9, 'd', 0, false, 24, false, None)); // ad
+    assert_eq!(read(&tree, 4), (10, 'e', 0, false, 25, false, None)); // ae
+    assert_eq!(read(&tree, 5), (11, 'f', 0, true, 30, false, None)); // af
+    assert_eq!(read(&tree, 6), (13, 'g', 0, false, 31, true, None)); // ag
+    assert_eq!(read(&tree, 7), (0, '1', 22, false, 0, false, Some(2))); // ab1
+    assert_eq!(read(&tree, 8), (0, '2', 23, false, 0, true, Some(3))); // ab2
+    assert_eq!(read(&tree, 9), (0, 'd', 24, false, 0, true, Some(4))); // add
+    assert_eq!(read(&tree, 10), (0, 'e', 25, false, 0, true, Some(5))); // aee
+    assert_eq!(read(&tree, 11), (14, 'f', 26, true, 29, false, Some(6))); // aff
+    assert_eq!(read(&tree, 12), (0, 't', 30, false, 0, true, Some(10))); // aft
+    assert_eq!(read(&tree, 13), (0, 'g', 31, false, 0, true, Some(11))); // agg
+    assert_eq!(read(&tree, 14), (0, '1', 27, false, 0, false, Some(7))); // aff1
+    assert_eq!(read(&tree, 15), (0, '2', 28, false, 0, false, Some(8))); // aff2
+    assert_eq!(read(&tree, 16), (0, '3', 29, false, 0, true, Some(9))); // aff3
 
     assert_snapshot!(tree);
 

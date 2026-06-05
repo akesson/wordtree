@@ -1,8 +1,8 @@
 mod data;
-mod expr;
 mod node;
 mod noderef;
 mod noderef_fn;
+pub(crate) mod rank;
 mod stringdelim;
 mod tree;
 pub mod tree_as;

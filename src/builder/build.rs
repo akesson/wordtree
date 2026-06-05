@@ -1,7 +1,7 @@
 use super::dft_post::DftPost;
 use super::{NodeData, TreeExt};
 use crate::Tree as WordTree;
-use crate::trie::Node;
+use crate::trie::{Node, rank};
 use ego_tree::{NodeId, NodeRef, Tree};
 use nonmax::NonMaxU32;
 use std::cmp::Reverse;
@@ -97,7 +97,12 @@ impl Builder {
 
     pub fn to_tree(self) -> WordTree {
         let root = self.tree.root();
-        let mut arr: Vec<Node> = Vec::with_capacity(root.value().node_count as usize);
+        let capacity = root.value().node_count as usize;
+        let mut arr: Vec<Node> = Vec::with_capacity(capacity);
+        // The sparse per-word side tables, filled in node-position order so the
+        // k-th word node lands at `values` slot k (see `crate::trie::rank`).
+        let mut word_bits = vec![0u8; rank::word_bits_bytes(capacity)];
+        let mut values: Vec<u8> = Vec::new();
         // a fifo with a child vec and an index to where the start pos should be written
         let mut to_process: VecDeque<(NodeRef<NodeData>, usize)> = VecDeque::new();
         to_process.push_back((root.first_child().unwrap(), NO_WRITE));
@@ -112,7 +117,13 @@ impl Builder {
                 if let Some(first_child) = node.first_child() {
                     to_process.push_back((first_child, arr.len()));
                 }
-                arr.push(Node::from_data(node.value(), node.next_sibling().is_none()));
+                let data = node.value();
+                let pos = arr.len();
+                if let Some(expr_index) = data.expr_index {
+                    rank::set_bit(&mut word_bits, pos);
+                    rank::push_value(&mut values, data.percentile, expr_index.get());
+                }
+                arr.push(Node::from_data(data, node.next_sibling().is_none()));
 
                 if let Some(next) = node.next_sibling() {
                     node = next;
@@ -121,9 +132,21 @@ impl Builder {
                 }
             }
         }
+        let n = arr.len();
         let mut vec: Vec<u8> = arr.into_iter().flat_map(|v| v.into_inner()).collect();
         vec.shrink_to_fit();
-        WordTree { vec }
+        word_bits.truncate(rank::word_bits_bytes(n));
+        word_bits.shrink_to_fit();
+        values.shrink_to_fit();
+        // Tight side tables keep the built tree's footprint == its serialized
+        // (mmappable) form.
+        let rank_index = rank::build_index(&word_bits, n);
+        WordTree {
+            vec,
+            word_bits,
+            rank_index,
+            values,
+        }
     }
 }
 

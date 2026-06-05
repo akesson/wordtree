@@ -36,11 +36,10 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
                     String::new()
                 };
 
-                let keep = if let Some(expr_index) = childcursor.expr_index() {
-                    if Some(childcursor.percentile()) > selector.min_value() {
+                let keep = if let Some((percentile, expr_index)) = childcursor.word_value() {
+                    if Some(percentile) > selector.min_value() {
                         if is_candidate(expr_index) {
-                            selector
-                                .add(Suggestion::extension(childcursor.percentile(), expr_index));
+                            selector.add(Suggestion::extension(percentile, expr_index));
                             WordKept
                         } else {
                             CandidateDiscarded

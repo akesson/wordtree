@@ -103,7 +103,7 @@ enum Found {
 impl Found {
     fn from<V: Deref<Target = [u8]>>(found: &Option<NodeRef<'_, V>>) -> Self {
         match found {
-            Some(node) => match node.expr_index().is_some() {
+            Some(node) => match node.is_word() {
                 true => Found::Expr,
                 false => Found::Node,
             },
@@ -152,13 +152,13 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
         chars: &[char],
     ) -> (Option<NodeRef<'a, V>>, Option<u32>, Found, Vec<Suggestion>) {
         let found = self.find(chars);
-        let found_index = found.as_ref().and_then(|f| f.expr_index());
+        // One rank query resolves both the index and the seed `Matching`.
+        let word_value = found.as_ref().and_then(|f| f.word_value());
+        let found_index = word_value.map(|(_, expr_index)| expr_index);
         let match_type = Found::from(&found);
-        let suggestions = match found.as_ref().map(|n| (n.percentile(), n.expr_index())) {
-            Some((percentile, Some(expr_index))) => {
-                vec![Suggestion::matching(percentile, expr_index)]
-            }
-            _ => vec![],
+        let suggestions = match word_value {
+            Some((percentile, expr_index)) => vec![Suggestion::matching(percentile, expr_index)],
+            None => vec![],
         };
         (found, found_index, match_type, suggestions)
     }

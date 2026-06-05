@@ -164,14 +164,14 @@ engine has one.
 
 | lang | engine | unique words | live heap (MiB) | peak build (MiB) | serialized (MiB) |
 | ---- | ------ | -----------: | --------------: | ---------------: | ---------------: |
-| en | wordtree | 638545 | 26.48 | 236.96 | 26.48 |
+| en | wordtree | 638545 | 21.11 | 223.58 | 21.11 |
 | en | fst | 638545 | 10.00 | 30.51 | 6.70 |
 | en | boomphf | 638545 | 33.92 | 68.71 | - |
 | en | hashmap | 638545 | 38.66 | 38.66 | - |
 | en | sorted-vec | 638545 | 25.14 | 34.89 | - |
 | en | symspell | 638545 | 300.42 | 301.66 | - |
 | en | pruning-trie | 638545 | 79.07 | 79.07 | - |
-| sv | wordtree | 113220 | 5.58 | 35.15 | 5.58 |
+| sv | wordtree | 113220 | 4.35 | 32.49 | 4.35 |
 | sv | fst | 113220 | 1.25 | 7.35 | 1.19 |
 | sv | boomphf | 113220 | 4.58 | 9.26 | - |
 | sv | hashmap | 113220 | 5.16 | 5.16 | - |
@@ -179,32 +179,36 @@ engine has one.
 | sv | symspell | 113220 | 60.86 | 71.60 | - |
 | sv | pruning-trie | 113220 | 17.52 | 17.52 | - |
 
-(wordtree stores a 12-byte node per trie node — 2,313,796 nodes en / 487,354 sv —
-which is exactly the 26.48 / 5.58 MiB live-and-serialized figures.)
+(wordtree stores an 8-byte node per trie node — 2,313,796 nodes en / 487,354 sv —
+plus compact per-word side tables: a word-bitvector, a rank index, and a 5-byte
+`percentile`+`expr_index` entry per word. en: 17.65 MiB nodes + 3.46 MiB side =
+21.11 MiB; sv: 3.72 + 0.63 = 4.35 MiB — both the live-and-serialized figures.)
 
-### Finding C — wordtree is *not* the compact one; fst is ~4× smaller
+### Finding C — wordtree is *not* the compact one; fst is ~3× smaller
 
 fst is the clear size winner (6.7 MiB serialized / 10 MiB live en) — it minimises
 shared **prefixes and suffixes** (DAWG-like). The key-storing structures cluster
-together: sorted-Vec 25, **wordtree 26**, boomphf 34, HashMap 39 MiB (en). So
-wordtree is competitive with the naive key-storing maps and ~4× *larger* than fst,
-which does exact lookup *and* spelling correction in that smaller space. wordtree shares
-prefixes only and stores a 12-byte node per character, so its "size-optimised"
-framing holds against a naive trie but **not** against an FSA. pruning-trie (79)
-and symspell (300) are in another league entirely.
+together: **wordtree 21**, sorted-Vec 25, boomphf 34, HashMap 39 MiB (en). So
+wordtree is the smallest of the naive key-storing structures yet still ~3× *larger*
+than fst, which does exact lookup *and* spelling correction in that smaller space.
+wordtree shares prefixes only and stores an 8-byte node per character plus a
+per-word side table, so its "size-optimised" framing holds against a naive trie
+but **not** against an FSA. pruning-trie (79) and symspell (300) are in another
+league entirely.
 
-What wordtree's bytes buy that fst's don't: inline `percentile` (frequency) and
-folder structure on every node, and **zero-copy mmap** — its serialized form *is*
-its in-memory form (`live == serialized`, 26.48 MiB both), so loading is an mmap
-with no parse or rebuild. fst is also mmap-able; HashMap/sorted-Vec/symspell are
-not (they must be rebuilt at startup).
+What wordtree's bytes buy that fst's don't: inline `max_child_percentile` and
+folder structure on every node, the per-word frequency + word→`expr_index`
+mapping, and **zero-copy mmap** — its serialized form *is* its in-memory form
+(`live == serialized`, 21.11 MiB both), so loading is an mmap with no parse or
+rebuild. fst is also mmap-able; HashMap/sorted-Vec/symspell are not (they must be
+rebuilt at startup).
 
 Two more honest notes:
-- **wordtree's build peaks at ~9× its final size** (237 MiB to produce 26 MiB),
+- **wordtree's build peaks at ~11× its final size** (224 MiB to produce 21 MiB),
   via the `ego-tree` builder — relevant if you generate trees on a constrained
   device.
 - **symspell trades memory for recall**: 300 MiB (en) for its delete-dictionary,
-  ~11× wordtree and ~45× fst, with no compact serialization.
+  ~14× wordtree and ~45× fst, with no compact serialization.
 - **boomphf** (`BoomHashMap`) stores the keys, so it can reject non-members; its
   34 MiB therefore includes the keys. It is exact-lookup-only (no autocomplete/correction/folders).
 
@@ -219,16 +223,17 @@ Criterion medians. Lookup is in **nanoseconds**; suggestions/autocomplete in
 
 | case | wordtree | fst | boomphf | hashmap | sorted-vec |
 | ---- | -------: | --: | ------: | ------: | ---------: |
-| en short `on` | 90.8 | 15.2 | 14.1 | **7.5** | 65.7 |
-| en long `alphanumerical` | 121.5 | 94.3 | 25.8 | **8.5** | 80.5 |
-| sv short `ut` | 77.9 | 18.0 | 13.7 | **8.3** | 54.0 |
-| sv long `rekommendation` | 101.3 | 84.5 | 21.4 | **8.6** | 67.4 |
+| en short `on` | 72.0 | 15.3 | 13.5 | **7.5** | 65.8 |
+| en long `alphanumerical` | 108.9 | 94.4 | 25.7 | **8.6** | 81.2 |
+| sv short `ut` | 67.7 | 18.1 | 13.1 | **8.7** | 55.3 |
+| sv long `rekommendation` | 95.4 | 85.4 | 21.4 | **8.6** | 69.0 |
 
-HashMap wins outright (~8 ns, flat). boomphf is next (~14–26 ns; it does a
-membership check plus a fetch). wordtree is the **slowest** here (~80–120 ns,
-~10–14× HashMap): `index_of` linearly scans each node's siblings. fst sits in the
+HashMap wins outright (~8 ns, flat). boomphf is next (~13–26 ns; it does a
+membership check plus a fetch). wordtree is the **slowest** here (~67–109 ns,
+~8–13× HashMap): `index_of` linearly scans each node's siblings. fst sits in the
 middle. All are tens of ns — fine in absolute terms, but exact lookup is not a
-reason to pick wordtree.
+reason to pick wordtree. (The 8-byte node — down from 12 — trimmed these ~10–20%
+versus earlier runs by fitting more siblings per cache line.)
 
 ### Spelling correction (edit distance 1)
 
@@ -238,10 +243,10 @@ force is the full DL≤1 scan.
 
 | case | wordtree (suggestions) | wordtree (corrections) | symspell | fst-lev | brute force |
 | ---- | ---------------------: | ---------------------: | -------: | ------: | ----------: |
-| en sub `abxut` | 98.4 µs | 97.8 µs | **1.5 µs** | 124.8 µs | 102.3 ms |
-| en del `abut` | 91.7 µs | 90.7 µs | **8.2 µs** | 125.2 µs | 91.8 ms |
-| sv sub `apxil` | 51.2 µs | 51.2 µs | **1.0 µs** | 74.4 µs | 19.2 ms |
-| sv del `apil` | 48.8 µs | 47.8 µs | **2.4 µs** | 70.2 µs | 17.2 ms |
+| en sub `abxut` | 95.0 µs | 94.0 µs | **1.5 µs** | 126.8 µs | 103.2 ms |
+| en del `abut` | 85.5 µs | 86.1 µs | **8.3 µs** | 128.7 µs | 92.1 ms |
+| sv sub `apxil` | 49.5 µs | 49.2 µs | **1.0 µs** | 78.5 µs | 19.2 ms |
+| sv del `apil` | 45.7 µs | 44.6 µs | **2.4 µs** | 71.1 µs | 17.2 ms |
 
 `corrections()` (correction-only) costs essentially the same as the combined
 `suggestions()` here — the Damerau walk is the cost, and a typo has no exact prefix
@@ -254,29 +259,31 @@ call — the direct counterpart to the pruning trie's top-k.
 
 | case | wordtree (suggestions) | wordtree (completions) | pruning-trie |
 | ---- | ---------------------: | ---------------------: | -----------: |
-| en `co` | 61.6 µs | 2.0 µs | **1.2 µs** |
-| sv `ko` | 31.7 µs | **1.2 µs** | 1.3 µs |
+| en `co` | 56.4 µs | 2.6 µs | **1.2 µs** |
+| sv `ko` | 29.1 µs | 1.5 µs | **1.3 µs** |
 
-### Finding D — correction latency trails symspell; autocomplete matches the pruning trie
+### Finding D — correction latency trails symspell; autocomplete is close to the pruning trie
 
-**Spelling correction.** symspell is the clear winner at ~1–8 µs. wordtree (≈50 µs sv,
-≈98 µs en) is **~50–65× slower than symspell** on substitutions; against fst-lev
-(≈70–125 µs) it is **~1.3–1.5× faster** while also correcting transpositions (fst-lev is
+**Spelling correction.** symspell is the clear winner at ~1–8 µs. wordtree (≈49 µs sv,
+≈95 µs en) is **~50–65× slower than symspell** on substitutions; against fst-lev
+(≈70–129 µs) it is **~1.3–1.6× faster** while also correcting transpositions (fst-lev is
 plain Levenshtein). The correction-only `corrections()` call costs essentially the same
-as the combined `suggestions()` (98 vs 98 µs en, 51 vs 51 µs sv): the Damerau walk is the
+as the combined `suggestions()` (94 vs 95 µs en, 49 vs 50 µs sv): the Damerau walk is the
 dominant cost, and a typo has no exact prefix for the autocomplete sweep to extend.
 
 **Autocomplete.** `suggestions()` runs the edit-distance walk on every call, even for a
 clean prefix that only needs completion, so it is the wrong call to race against a pure
 top-k completer. The autocomplete-only `completions()` call is the direct equivalent: it
-skips the walk and lands at **~2.0 µs (en) / ~1.2 µs (sv)**, at parity with the pruning
-trie (~1.2–1.3 µs) and faster on sv. The higher `suggestions()` figure is the bundled
-correction work, not the autocomplete.
+skips the walk and lands at **~2.6 µs (en) / ~1.5 µs (sv)** — close to the pruning trie
+(~1.2–1.3 µs): within ~1.15× on sv, ~2× on en. The higher `suggestions()` figure is the
+bundled correction work, not the autocomplete.
 
 The split is structural — the same mechanism behind Finding A: `corrections()` walks the
 trie one DP row per visited node, whereas symspell does a handful of hash lookups against
 precomputed deletes; `completions()`, like the pruning trie, is just a pruned top-k
-descent.
+descent. wordtree's small extra cost over the pruning trie is the per-kept-word rank
+lookup into its side `values` table — the price of storing frequency off-node to keep the
+node 8 bytes (§2).
 
 ---
 
@@ -285,20 +292,21 @@ descent.
 On **every individual axis, a specialist beats wordtree**:
 
 - **Exact lookup:** HashMap and boomphf are fastest; wordtree is the slowest
-  (~10–14× HashMap), though still tens of ns. Not a reason to choose wordtree.
-- **Size:** fst does exact lookup + spelling correction in ~4× less space; wordtree is
-  mid-pack with the naive key-storing maps. wordtree's bytes buy inline frequency +
-  folders + zero-copy mmap.
+  (~8–13× HashMap), though still tens of ns. Not a reason to choose wordtree.
+- **Size:** fst does exact lookup + spelling correction in ~3× less space; wordtree is
+  the smallest of the naive key-storing structures. wordtree's bytes buy inline
+  frequency + folders + zero-copy mmap.
 - **Spelling correction:** wordtree now corrects all four single-edit kinds
   (Finding A), but symspell is still ~50–65× faster and returns the *complete*
   DL≤1 set, whereas wordtree returns a short, frequency-capped list — so for
-  exhaustive spell-checking symspell wins. wordtree is ~1.3–1.5× faster than
+  exhaustive spell-checking symspell wins. wordtree is ~1.3–1.6× faster than
   fst-lev, and unlike fst's plain-Levenshtein automaton it also corrects
   transpositions.
-- **Autocomplete:** with the autocomplete-only `completions()` call wordtree is at
-  parity with pruning_radix_trie (~1–2 µs; faster on sv). The pruning trie still
-  tracks the frequency oracle better (recall@5 93% vs 85% sv). The combined
-  `suggestions()` is far slower here only because it also runs the correction walk.
+- **Autocomplete:** with the autocomplete-only `completions()` call wordtree is
+  close to pruning_radix_trie (~1.5–2.6 µs; within ~1.15× on sv, ~2× on en). The
+  pruning trie still tracks the frequency oracle better (recall@5 93% vs 85% sv).
+  The combined `suggestions()` is far slower here only because it also runs the
+  correction walk.
 
 **The case for wordtree is the *combination*, not any single axis**: a browsable index +
 frequency + typo-tolerant autocomplete in **one** structure that loads by zero-copy mmap
