@@ -289,14 +289,33 @@ no exact prefix for the autocomplete sweep to extend.)
 pruning trie's top-k, skipping the edit-distance walk. (The combined `suggestions()`
 runs the walk anyway, so its autocomplete cost belongs in §3.4, not here.)
 
-| case | wordtree (completions) | pruning-trie |
-| ---- | ---------------------: | -----------: |
-| en `co` | 3.0 µs | **1.2 µs** |
-| sv `ko` | 1.7 µs | **1.3 µs** |
+Six of the most common prefixes per language (Criterion medians, ascending by
+`completions()` time):
 
-> **Thin sample — TODO.** These rest on one prefix per language (`co`, `ko`); two
-> points is weak support for the ~1.3–2.5× ratio. Widen to a handful of prefixes
-> (re-run `cargo bench -p comparisons`) before leaning on the exact multiplier.
+| prefix | wordtree (completions) | pruning-trie | ratio |
+| ------ | ---------------------: | -----------: | ----: |
+| en `de` | 2.3 µs | **1.2 µs** | 2.0× |
+| en `co` | 3.0 µs | **1.2 µs** | 2.5× |
+| en `pr` | 3.5 µs | **1.2 µs** | 2.9× |
+| en `re` | 3.7 µs | **1.3 µs** | 2.9× |
+| en `in` | 5.6 µs | **1.4 µs** | 4.0× |
+| en `un` | 7.3 µs | **1.5 µs** | 4.9× |
+| sv `ma` | 1.1 µs | **1.1 µs** | 1.1× |
+| sv `st` | 1.4 µs | **0.9 µs** | 1.5× |
+| sv `ka` | 1.6 µs | **1.3 µs** | 1.2× |
+| sv `sk` | 1.6 µs | **1.2 µs** | 1.4× |
+| sv `ko` | 1.7 µs | **1.3 µs** | 1.3× |
+| sv `in` | 3.4 µs | **1.4 µs** | 2.5× |
+
+The ratio is **not** flat. The pruning trie holds ~0.9–1.5 µs across every prefix,
+while `completions()` scales with the prefix's fan-out — near-parity on a small
+subtree (sv `ma`, 1.1×) up to ~5× on the highest-frequency English prefixes (`un`,
+`in`), which sweep tens of thousands of descendants. wordtree pays a per-kept-word
+rank lookup into its off-node `values` table (plus the small percentile sort from
+Finding E) on every swept word, and prunes a little less aggressively; the pruning
+trie visits fewer. So the autocomplete latency gap is **~1.1–2.5× (sv) / ~2–5×
+(en), widening with prefix popularity** — wordtree's edge is recall (Finding E),
+not speed.
 
 ### 3.4 The combined call — one structure vs a two-specialist stack
 
@@ -336,9 +355,11 @@ on speed.
 substitutions; against fst-lev (≈70–127 µs) it is **~2.5–3.2× faster** while also
 correcting transpositions (fst-lev is plain Levenshtein).
 
-**Autocomplete (§3.3).** The autocomplete-only `completions()` lands at **~3.0 µs
-(en) / ~1.7 µs (sv)** — close to the pruning trie (~1.2–1.3 µs): within ~1.3× on sv,
-~2.5× on en (on a thin two-prefix sample — see the TODO above).
+**Autocomplete (§3.3).** Across six common prefixes the autocomplete-only
+`completions()` runs **2.3–7.3 µs (en) / 1.1–3.4 µs (sv)** while the pruning trie
+stays flat at ~0.9–1.5 µs, so the latency gap is **~2–5× (en) / ~1.1–2.5× (sv)**,
+widening with the prefix's fan-out. wordtree's edge here is recall (Finding E), not
+speed.
 
 **The combined call (§3.4).** `suggestions()` runs the edit-distance walk on *every*
 call, even for a clean prefix, so it is structurally slower than either specialist
@@ -353,9 +374,11 @@ does a handful of hash lookups against precomputed deletes; `completions()`, lik
 pruning trie, is just a pruned top-k descent. The band makes each visited node cost O(K)
 rather than O(query length), so the walk's cost tracks the number of nodes it visits, not
 how long the query is — longer queries benefit most (the 4–5-char typos above roughly
-halved versus a full-row walk; a 14-char query drops ~80%). wordtree's small extra cost
-over the pruning trie is the per-kept-word rank lookup into its side `values` table — the
-price of storing frequency off-node to keep the node 8 bytes (§2).
+halved versus a full-row walk; a 14-char query drops ~80%). wordtree's extra cost over
+the pruning trie — a per-kept-word rank lookup into its side `values` table (the price
+of storing frequency off-node to keep the node 8 bytes, §2), plus slightly looser
+pruning — is small on shallow prefixes but scales with the swept subtree, reaching ~5×
+on the highest-fan-out English prefixes (§3.3).
 
 ---
 
@@ -374,11 +397,11 @@ On **every individual axis, a specialist beats wordtree**:
   (~25–31× faster on substitutions), not recall. wordtree is ~2.5–3.2× faster than
   fst-lev, and unlike fst's plain-Levenshtein automaton it also corrects
   transpositions.
-- **Autocomplete:** with the autocomplete-only `completions()` call wordtree is
-  close to pruning_radix_trie on **latency** (~1.7–3.0 µs; within ~1.3× on sv, ~2.5× on
-  en) and, after Finding E, slightly **ahead on recall@5** (80% vs 74% en, 96% vs 93%
-  sv). The combined `suggestions()` is far slower here only because it also runs the
-  correction walk.
+- **Autocomplete:** the pruning trie is consistently **faster** on latency — flat at
+  ~1 µs, while the autocomplete-only `completions()` scales with prefix fan-out to ~2–5×
+  that on popular English prefixes (§3.3) — but after Finding E wordtree is slightly
+  **ahead on recall@5** (80% vs 74% en, 96% vs 93% sv). The combined `suggestions()` is
+  far slower still because it also runs the correction walk.
 
 **The case for wordtree is the *combination*, not any single axis**: a browsable index +
 frequency + typo-tolerant autocomplete in **one** structure that loads by zero-copy mmap

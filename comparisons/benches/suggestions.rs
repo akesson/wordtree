@@ -66,24 +66,25 @@ fn bench_autocomplete(c: &mut Criterion) {
         let tree = build_wordtree(&ds.rows);
         let trie = build_pruning_trie(&ds.rows);
 
-        let prefix = prefix_query_set(&ds, 1)
-            .into_iter()
-            .next()
-            .expect("a prefix");
+        // A handful of the most common prefixes, not just one, so the
+        // completions-vs-pruning ratio rests on a real sample (REPORT §3.3).
+        let prefixes = prefix_query_set(&ds, 6);
 
         let mut group = c.benchmark_group(format!("autocomplete/{lang}"));
-        group.measurement_time(Duration::from_secs(4));
+        group.measurement_time(Duration::from_secs(3));
         group.sample_size(30);
 
-        group.bench_function(format!("wordtree {prefix}"), |b| {
-            b.iter(|| tree.suggestions(black_box(prefix.as_str()), |_| true))
-        });
-        group.bench_function(format!("wordtree-complete {prefix}"), |b| {
-            b.iter(|| tree.completions(black_box(prefix.as_str()), |_| true))
-        });
-        group.bench_function(format!("pruning-trie {prefix}"), |b| {
-            b.iter(|| pruning_prefix_words(&trie, black_box(prefix.as_str()), 5))
-        });
+        for prefix in &prefixes {
+            group.bench_function(format!("wordtree {prefix}"), |b| {
+                b.iter(|| tree.suggestions(black_box(prefix.as_str()), |_| true))
+            });
+            group.bench_function(format!("wordtree-complete {prefix}"), |b| {
+                b.iter(|| tree.completions(black_box(prefix.as_str()), |_| true))
+            });
+            group.bench_function(format!("pruning-trie {prefix}"), |b| {
+                b.iter(|| pruning_prefix_words(&trie, black_box(prefix.as_str()), 5))
+            });
+        }
         group.finish();
     }
 }
