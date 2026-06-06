@@ -10,6 +10,7 @@
 //!   3. Autocomplete — top-5 agreement with the frequency oracle.
 
 use comparisons::*;
+use wordtree::{Caps, TreeFn};
 
 const PER_KIND: usize = 50;
 const PREFIXES: usize = 25;
@@ -106,6 +107,27 @@ fn main() {
                 pct(mean(&recalls))
             );
         }
+        // wordtree's dedicated spell-check surface, configured exhaustive via
+        // `Caps::uniform`: the bounded default (the `wordtree` row above, the
+        // merged `suggestions()`) favours completions for valid-word queries, but
+        // `corrections_with` opens the cap to match symspell's complete DL≤1 set.
+        let mut ex_counts = Vec::new();
+        let mut ex_recalls = Vec::new();
+        for q in &queries {
+            let got: Vec<String> = tree
+                .corrections_with(&q.text, |_| true, Caps::uniform(64))
+                .into_iter()
+                .filter_map(|s| ds.word_of_expr(s.expr_index).map(|w| w.to_string()))
+                .collect();
+            ex_counts.push(got.len() as f64);
+            let truth = ground_truth_dl1(&ds, &q.text);
+            ex_recalls.push(recall(&got, &truth));
+        }
+        println!(
+            "| wordtree (corrections, exhaustive) | {:.1} | {} |",
+            mean(&ex_counts),
+            pct(mean(&ex_recalls))
+        );
         println!();
 
         // --- 3. Autocomplete top-5 agreement ---------------------------------

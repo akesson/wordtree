@@ -1,6 +1,6 @@
 use rkyv::{Archive, Deserialize, Serialize, vec::ArchivedVec};
 
-use crate::{Suggestion, search::NoLedger};
+use crate::{Caps, Suggestion, search::NoLedger};
 
 use super::NodeRef;
 use std::{fmt, ops::Deref};
@@ -66,8 +66,19 @@ pub trait TreeFn {
     /// list — the combined as-you-type call. Use [`Self::completions`] or
     /// [`Self::corrections`] to pay for only one job.
     fn suggestions<F: Fn(u32) -> bool>(&self, search: &str, is_candidate: F) -> Vec<Suggestion> {
+        self.suggestions_with(search, is_candidate, Caps::default())
+    }
+
+    /// [`Self::suggestions`] with an explicit correction budget — e.g.
+    /// `Caps::uniform(64)` to also surface corrections of valid prefixes.
+    fn suggestions_with<F: Fn(u32) -> bool>(
+        &self,
+        search: &str,
+        is_candidate: F,
+        caps: Caps,
+    ) -> Vec<Suggestion> {
         self.root()
-            .suggestions_with_ledger(search, is_candidate, &mut NoLedger::default())
+            .suggestions_with_ledger(search, is_candidate, caps, &mut NoLedger::default())
     }
 
     /// Frequency-ranked completions of `prefix` (plus the exact match when
@@ -83,8 +94,20 @@ pub trait TreeFn {
     /// distance (plus the exact match when `search` is itself a word).
     /// Correction-only: no completions are appended.
     fn corrections<F: Fn(u32) -> bool>(&self, search: &str, is_candidate: F) -> Vec<Suggestion> {
+        self.corrections_with(search, is_candidate, Caps::default())
+    }
+
+    /// [`Self::corrections`] with an explicit correction budget. Pass a generous
+    /// `Caps::uniform(n)` for exhaustive spell-checking, including of queries that
+    /// are themselves valid words (where the default keeps only [`Caps::found`]).
+    fn corrections_with<F: Fn(u32) -> bool>(
+        &self,
+        search: &str,
+        is_candidate: F,
+        caps: Caps,
+    ) -> Vec<Suggestion> {
         self.root()
-            .corrections_with_ledger(search, is_candidate, &mut NoLedger::default())
+            .corrections_with_ledger(search, is_candidate, caps, &mut NoLedger::default())
     }
 }
 

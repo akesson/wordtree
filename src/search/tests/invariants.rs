@@ -62,12 +62,18 @@ fn caps_and_bounds_are_respected() {
                 .iter()
                 .filter(|(k, _, _)| *k == SuggestionType::Spelling)
                 .count();
+            let completion = s
+                .iter()
+                .filter(|(k, _, _)| matches!(k, SuggestionType::Extension | SuggestionType::AltExt))
+                .count();
             assert!(matching <= 1, "more than one Matching for {q:?}");
-            assert!(spelling <= 3, "more than 3 Spellings for {q:?}: {s:?}");
             assert!(
-                s.len() <= 6,
-                "more than 6 suggestions for {q:?}: {}",
-                s.len()
+                spelling <= crate::Caps::default().not_found,
+                "spellings exceed the not-found cap for {q:?}: {s:?}"
+            );
+            assert!(
+                completion <= 6,
+                "completions exceed the 6-slot budget for {q:?}: {s:?}"
             );
         }
     }
@@ -95,7 +101,7 @@ fn walk_prunes_the_vast_majority_of_the_tree() {
         let mut ledger = crate::StateLedger::default();
         let _ =
             SV.0.root()
-                .suggestions_with_ledger(q, |_| true, &mut ledger);
+                .suggestions_with_ledger(q, |_| true, crate::Caps::default(), &mut ledger);
         let visited = ledger
             .0
             .iter()

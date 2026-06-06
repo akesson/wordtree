@@ -112,18 +112,61 @@ impl Found {
     }
 }
 
+/// Per-query bounds on how many spelling corrections the fuzzy search keeps,
+/// split by whether the query is itself a known word/prefix. Both apply only to
+/// longer (len ≥ 4) queries — shorter queries keep a fixed, smaller bound (a
+/// 1–2 char query has too many neighbours to be useful).
+///
+/// [`Caps::default`] is the bounded as-you-type policy: it favours completions
+/// over corrections for valid prefixes (a deletion typo such as "abut" or "brad"
+/// often spells another real word, and flooding it with 40 corrections would be
+/// poor autocomplete). For exhaustive spell-checking — every Damerau-Levenshtein
+/// ≤1 neighbour, including of valid words — pass a generous [`Caps::uniform`] to
+/// `corrections_with` / `suggestions_with`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Caps {
+    /// Corrections kept when the query is not a known word/prefix (a plain typo).
+    pub not_found: usize,
+    /// Corrections kept when the query is itself a known word/prefix — e.g. a
+    /// deletion typo that spells another real word. Small by default so the
+    /// merged `suggestions()` favours completions here.
+    pub found: usize,
+}
+
+impl Default for Caps {
+    fn default() -> Self {
+        Self {
+            not_found: 20,
+            found: 2,
+        }
+    }
+}
+
+impl Caps {
+    /// The same bound whether or not the query is a known word — use a generous
+    /// value (real DL≤1 sets top out around ~45 words) for near-exhaustive
+    /// spell-check recall.
+    pub fn uniform(n: usize) -> Self {
+        Self {
+            not_found: n,
+            found: n,
+        }
+    }
+}
+
 /// The number of spelling corrections [`NodeRef::corrections_with_ledger`] and
-/// [`NodeRef::suggestions_with_ledger`] gather, by query length and whether an
-/// exact prefix/word was found. Short queries admit fewer corrections (a 1-char
-/// query has too many words within edit distance to be useful).
-fn spellings_cap(query_len: usize, found: &Found) -> usize {
+/// [`NodeRef::suggestions_with_ledger`] gather, by query length, whether an
+/// exact prefix/word was found, and the caller's [`Caps`]. Short queries admit
+/// fewer corrections (a 1-char query has too many words within edit distance to
+/// be useful) regardless of `caps`.
+fn spellings_cap(query_len: usize, found: &Found, caps: Caps) -> usize {
     match (query_len, found) {
         (0 | 1, _) => 0,
         (2, _) => 1,
         (3, Found::Node | Found::Expr) => 1,
         (3, Found::None) => 2,
-        (_, Found::None) => 3,
-        (_, _) => 2,
+        (_, Found::None) => caps.not_found,
+        (_, _) => caps.found,
     }
 }
 
@@ -174,6 +217,7 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
         &self,
         search: &str,
         is_candidate: F,
+        caps: Caps,
         ledger: &mut L,
     ) -> Vec<Suggestion>
     where
@@ -182,7 +226,7 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
         let chars: Vec<char> = search.chars().collect();
         let (found, found_index, match_type, mut suggestions) = self.exact_match(&chars);
 
-        let mut spellings = MaxArr::with_capacity(spellings_cap(chars.len(), &match_type));
+        let mut spellings = MaxArr::with_capacity(spellings_cap(chars.len(), &match_type, caps));
         let mut altpaths = MaxArr::with_capacity(3);
         self.dist_search::<{ crate::editdist::BAND }, _, _>(
             &chars,
@@ -194,11 +238,11 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
         suggestions.extend(spellings.into_iter());
 
         if let Some(start) = found.as_ref().and_then(|n| n.children()) {
-            let mut extensions = MaxArr::with_capacity(6 - suggestions.len());
+            let mut extensions = MaxArr::with_capacity(6usize.saturating_sub(suggestions.len()));
             start.freq_search(&is_candidate, &mut extensions, search, ledger);
             suggestions.extend(extensions.into_iter());
         } else {
-            let mut extensions = MaxArr::with_capacity(6 - suggestions.len());
+            let mut extensions = MaxArr::with_capacity(6usize.saturating_sub(suggestions.len()));
             for altpath in altpaths.into_iter() {
                 altpath
                     .node
@@ -218,6 +262,7 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
         &self,
         search: &str,
         is_candidate: F,
+        caps: Caps,
         ledger: &mut L,
     ) -> Vec<Suggestion>
     where
@@ -226,7 +271,7 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
         let chars: Vec<char> = search.chars().collect();
         let (_found, found_index, match_type, mut suggestions) = self.exact_match(&chars);
 
-        let mut spellings = MaxArr::with_capacity(spellings_cap(chars.len(), &match_type));
+        let mut spellings = MaxArr::with_capacity(spellings_cap(chars.len(), &match_type, caps));
         // Corrections never seed completions, so the altpath collector is a
         // no-op sink: capacity 0 makes `dist_search` skip altpath bookkeeping.
         let mut altpaths = MaxArr::with_capacity(0);
@@ -242,9 +287,10 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
         finish(suggestions, found_index)
     }
 
-    /// Prefix completions only: the exact match (when the query is a word) plus
-    /// the highest-frequency words extending it, via the frequency sweep
-    /// ([`Self::freq_search`]) from the matched node's children. Runs no
+    /// Prefix completions only: the highest-frequency words extending `prefix`,
+    /// via the frequency sweep ([`Self::freq_search`]) from the matched node's
+    /// children, plus the exact word itself (when `prefix` is a word) competing
+    /// for a slot by its own frequency rather than pinned on top. Runs no
     /// Damerau-Levenshtein walk, so a query that is not an exact prefix of any
     /// word returns nothing — the autocomplete slice of
     /// [`Self::suggestions_with_ledger`].
@@ -258,15 +304,26 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
         F: Fn(u32) -> bool,
     {
         let chars: Vec<char> = prefix.chars().collect();
-        let (found, found_index, _match_type, mut suggestions) = self.exact_match(&chars);
+        let (found, _found_index, _match_type, seed) = self.exact_match(&chars);
 
+        // The exact word (when `prefix` is itself a word) competes for a slot by
+        // its own frequency — exactly like the rival pruning-radix-trie and the
+        // frequency oracle — rather than being pinned above higher-frequency
+        // continuations. A low-frequency stub (e.g. "co") is evicted from the
+        // top-k; a high-frequency word (e.g. "the") survives.
+        let mut extensions = MaxArr::with_capacity(6);
+        for suggestion in seed {
+            extensions.add(suggestion);
+        }
         if let Some(start) = found.and_then(|n| n.children()) {
-            let mut extensions = MaxArr::with_capacity(6 - suggestions.len());
             start.freq_search(&is_candidate, &mut extensions, prefix, ledger);
-            suggestions.extend(extensions.into_iter());
         }
 
-        finish(suggestions, found_index)
+        // Rank purely by percentile (no `Matching`-first pin) — this is the
+        // completion ordering; the merged `suggestions()` keeps the pin.
+        let mut out: Vec<Suggestion> = extensions.into_iter().collect();
+        out.sort_by(|a, b| b.percentile.cmp(&a.percentile));
+        out
     }
 
     pub fn find(&self, chars: &[char]) -> Option<NodeRef<'a, V>> {

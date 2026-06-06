@@ -6,7 +6,7 @@ mod trie;
 
 pub use builder::Builder;
 pub use expression::Expression;
-pub use search::Suggestion;
+pub use search::{Caps, Suggestion};
 pub use trie::tsv::Entry as TsvEntry;
 pub use trie::{ArchivedTree, NodeRef, Tree, TreeFn};
 

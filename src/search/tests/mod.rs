@@ -31,6 +31,20 @@ fn tree_of(words: &[(&str, u16, u32)]) -> Tree {
     b.to_tree()
 }
 
+/// Every first-character substitution of `word` (a–z except the original first
+/// char): a fixture of 25 distinct words, each at distance 1 from `word` — more
+/// than the spelling cap, so the cap is what bounds a search over them.
+/// Percentiles descend so the kept subset is deterministic.
+fn first_char_neighbours(word: &str) -> Vec<(String, u16, u32)> {
+    let first = word.chars().next().unwrap();
+    let rest: String = word.chars().skip(1).collect();
+    ('a'..='z')
+        .filter(|&c| c != first)
+        .enumerate()
+        .map(|(i, c)| (format!("{c}{rest}"), 900 - i as u16 * 10, i as u32 + 1))
+        .collect()
+}
+
 /// Every suggestion for `q` as `(kind, word, percentile)`.
 fn suggestions_of(tree: &Tree, q: &str) -> Vec<(SuggestionType, String, u16)> {
     let lookup = tree.as_lookup();
@@ -126,7 +140,7 @@ fn suggestions(lang: &(Tree, HashMap<u32, TreeEntry>), search: &str) -> String {
     let (arr, lookup) = lang;
     let mut ledger = NoLedger::default();
     arr.root()
-        .suggestions_with_ledger(search, |_| true, &mut ledger)
+        .suggestions_with_ledger(search, |_| true, crate::Caps::default(), &mut ledger)
         .iter()
         .map(|s| format!("{}    {}", s, lookup[&s.expr_index].path,))
         .collect::<Vec<String>>()
@@ -146,9 +160,9 @@ fn test_pla() {
     let lookup = tree.as_lookup();
 
     let mut ledger = StateLedger::default();
-    let _ = tree
-        .root()
-        .suggestions_with_ledger("pla", |_| true, &mut ledger);
+    let _ =
+        tree.root()
+            .suggestions_with_ledger("pla", |_| true, crate::Caps::default(), &mut ledger);
     let trace = ledger
         .0
         .into_iter()
@@ -167,17 +181,15 @@ fn test_pla() {
 fn spellings_cap_scales_with_query_length() {
     // Each query below has more distance-1 neighbours (first-character
     // substitutions) than the cap, so the cap is what bounds the result.
-    let four = tree_of(&[
-        ("axxx", 900, 1),
-        ("bxxx", 800, 2),
-        ("cxxx", 700, 3),
-        ("dxxx", 600, 4),
-        ("exxx", 500, 5),
-    ]);
+    // All 25 first-character substitutions (a–z except x), each distance 1 from
+    // "xxxx" — more than the cap, so the len-4 not-found cap bounds the result.
+    let owned = first_char_neighbours("xxxx");
+    let refs: Vec<(&str, u16, u32)> = owned.iter().map(|(w, p, i)| (w.as_str(), *p, *i)).collect();
+    let four = tree_of(&refs);
     assert_eq!(
         spelling_count(&four, "xxxx"),
-        3,
-        "len 4, not found -> cap 3"
+        crate::Caps::default().not_found,
+        "len 4, not found -> Caps::default().not_found"
     );
 
     let three = tree_of(&[
@@ -348,9 +360,9 @@ fn dl_walk_indel_trace() {
     // engine scored this 2 and pruned it).
     let tree = tree_of(&[("alla", 99, 1), ("alle", 50, 2)]);
     let mut ledger = StateLedger::default();
-    let _ = tree
-        .root()
-        .suggestions_with_ledger("ala", |_| true, &mut ledger);
+    let _ =
+        tree.root()
+            .suggestions_with_ledger("ala", |_| true, crate::Caps::default(), &mut ledger);
     let trace = ledger
         .0
         .iter()

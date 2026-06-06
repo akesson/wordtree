@@ -72,6 +72,36 @@ fn includes_the_exact_word_as_matching() {
 }
 
 #[test]
+fn low_frequency_exact_word_is_outranked_by_completions() {
+    // "co" is a zero-frequency stub word; its continuations are far more common.
+    // The exact word must compete by its own frequency (like the rival
+    // pruning-radix-trie and the oracle), not be pinned at slot 1 — otherwise it
+    // would steal a top-k slot from a real completion. With the 6-slot budget
+    // full of higher-frequency words, the stub is evicted entirely.
+    let tree = tree_of(&[
+        ("co", 0, 1),
+        ("cow", 900, 2),
+        ("cover", 880, 3),
+        ("count", 860, 4),
+        ("cost", 840, 5),
+        ("code", 820, 6),
+        ("cool", 800, 7),
+    ]);
+    let got = completions_of(&tree, "co");
+    let words: Vec<&str> = got.iter().map(|(_, w, _)| w.as_str()).collect();
+    assert_eq!(
+        words.first(),
+        Some(&"cow"),
+        "highest-frequency completion must lead, not the typed stub: {got:?}"
+    );
+    assert!(
+        !words.contains(&"co"),
+        "zero-frequency exact word should be evicted, not occupy a slot: {got:?}"
+    );
+    assert!(words.len() <= 6, "completions exceeded the cap: {got:?}");
+}
+
+#[test]
 fn non_prefix_typo_returns_nothing() {
     // THE design pin: completions() is pure-prefix. The combined suggestions()
     // corrects "blla" -> "alla" (+ stem completions) via altpaths, but

@@ -3,7 +3,7 @@
 //! Damerau-Levenshtein walk. No completion sweep runs, so it never returns
 //! prefix extensions — the spell-check slice of the combined suggestions().
 
-use super::{SV_TREE, SuggestionType, tree_of};
+use super::{SV_TREE, SuggestionType, first_char_neighbours, tree_of};
 use crate::trie::TreeFn;
 
 #[test]
@@ -45,21 +45,55 @@ fn does_not_return_prefix_extensions() {
 
 #[test]
 fn respects_the_spellings_cap() {
-    // Five first-letter neighbours, all distance 1 from "xxxx"; the len-4
-    // not-found cap (3) bounds the result — the same cap suggestions() uses.
-    let tree = tree_of(&[
-        ("axxx", 900, 1),
-        ("bxxx", 800, 2),
-        ("cxxx", 700, 3),
-        ("dxxx", 600, 4),
-        ("exxx", 500, 5),
-    ]);
+    // 25 first-letter neighbours, all distance 1 from "xxxx"; the len-4 not-found
+    // cap bounds the result — the same cap suggestions() uses by default.
+    let owned = first_char_neighbours("xxxx");
+    let refs: Vec<(&str, u16, u32)> = owned.iter().map(|(w, p, i)| (w.as_str(), *p, *i)).collect();
+    let tree = tree_of(&refs);
     let n = tree
         .corrections("xxxx", |_| true)
         .iter()
         .filter(|s| s.kind == SuggestionType::Spelling)
         .count();
-    assert_eq!(n, 3, "len-4 not-found cap should be 3");
+    assert_eq!(
+        n,
+        crate::Caps::default().not_found,
+        "len-4 not-found cap should be Caps::default().not_found"
+    );
+}
+
+#[test]
+fn caps_let_the_caller_widen_corrections_of_a_valid_word() {
+    // The "abut"/"brad" case: a valid word whose distance-1 neighbours are also
+    // words. The default `found` cap keeps only a couple; `Caps::uniform` opens
+    // the spell-check surface up to every Damerau-Levenshtein ≤1 neighbour.
+    let mut owned = first_char_neighbours("brad"); // 25 distance-1 words
+    owned.push(("brad".to_string(), 1000, 999)); // the valid word itself
+    let refs: Vec<(&str, u16, u32)> = owned.iter().map(|(w, p, i)| (w.as_str(), *p, *i)).collect();
+    let tree = tree_of(&refs);
+
+    let spelling_count = |caps| {
+        tree.corrections_with("brad", |_| true, caps)
+            .iter()
+            .filter(|s| s.kind == SuggestionType::Spelling)
+            .count()
+    };
+
+    let default = tree
+        .corrections("brad", |_| true)
+        .iter()
+        .filter(|s| s.kind == SuggestionType::Spelling)
+        .count();
+    assert_eq!(
+        default,
+        crate::Caps::default().found,
+        "valid-word query uses the bounded found-cap by default"
+    );
+    assert_eq!(
+        spelling_count(crate::Caps::uniform(64)),
+        25,
+        "a generous uniform cap surfaces every distance-1 neighbour"
+    );
 }
 
 #[test]
