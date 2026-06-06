@@ -219,10 +219,14 @@ Two more honest notes:
 
 ## 3. Latency
 
-Criterion medians. Lookup is in **nanoseconds**; suggestions/autocomplete in
-**microseconds / milliseconds**.
+Criterion medians. Lookup is in **nanoseconds**; correction/autocomplete in
+**microseconds / milliseconds**. The first three tables are *apples-to-apples*:
+each races wordtree's matching **single-job** call against the rival specialist for
+that job. The fourth (§3.4) is wordtree's combined `suggestions()` call, which has
+no single-engine rival — it is raced instead against the two-specialist stack you
+would otherwise assemble to get the same fuzzy-autocomplete behaviour.
 
-### Exact lookup (ns)
+### 3.1 Exact lookup (ns)
 
 | case | wordtree | fst | boomphf | hashmap | sorted-vec |
 | ---- | -------: | --: | ------: | ------: | ---------: |
@@ -238,48 +242,83 @@ middle. All are tens of ns — fine in absolute terms, but exact lookup is not a
 reason to pick wordtree. (The 8-byte node — down from 12 — trimmed these ~10–20%
 versus earlier runs by fitting more siblings per cache line.)
 
-### Spelling correction (edit distance 1)
+### 3.2 Spelling correction (edit distance 1) — `corrections()` vs the correctors
 
 A *substitution* typo and a *deletion* typo — both now corrected by every engine
-(Finding A). `wordtree (corrections)` is the correction-only `corrections()` call; brute
-force is the full DL≤1 scan.
+(Finding A). `wordtree (corrections)` is the correction-only `corrections()` call;
+brute force is the full DL≤1 scan. (The combined `suggestions()` figure lives in
+§3.4; on a typo it is within ~1% of `corrections()`, since the input has no exact
+prefix for the autocomplete sweep to extend.)
 
-| case | wordtree (suggestions) | wordtree (corrections) | symspell | fst-lev | brute force |
-| ---- | ---------------------: | ---------------------: | -------: | ------: | ----------: |
-| en sub `abxut` | 44.0 µs | 43.8 µs | **1.4 µs** | 122.6 µs | 95.1 ms |
-| en del `abut` | 48.7 µs | 48.3 µs | **8.0 µs** | 124.3 µs | 86.4 ms |
-| sv sub `apxil` | 24.0 µs | 23.5 µs | **0.9 µs** | 76.1 µs | 18.1 ms |
-| sv del `apil` | 26.2 µs | 25.3 µs | **2.4 µs** | 69.9 µs | 16.4 ms |
+| case | wordtree (corrections) | symspell | fst-lev | brute force |
+| ---- | ---------------------: | -------: | ------: | ----------: |
+| en sub `abxut` | 43.8 µs | **1.4 µs** | 122.6 µs | 95.1 ms |
+| en del `abut` | 48.3 µs | **8.0 µs** | 124.3 µs | 86.4 ms |
+| sv sub `apxil` | 23.5 µs | **0.9 µs** | 76.1 µs | 18.1 ms |
+| sv del `apil` | 25.3 µs | **2.4 µs** | 69.9 µs | 16.4 ms |
 
-`corrections()` (correction-only) costs essentially the same as the combined
-`suggestions()` here — the Damerau walk is the cost, and a typo has no exact prefix
-to complete, so the autocomplete sweep adds nothing.
+### 3.3 Autocomplete (prefix top-5) — `completions()` vs the pruning trie
 
-### Autocomplete (prefix top-5)
+`completions()` is the autocomplete-only call — the direct counterpart to the
+pruning trie's top-k, skipping the edit-distance walk. (The combined `suggestions()`
+runs the walk anyway, so its autocomplete cost belongs in §3.4, not here.)
 
-`suggestions()` also runs the edit-distance walk; `completions()` is the autocomplete-only
-call — the direct counterpart to the pruning trie's top-k.
+| case | wordtree (completions) | pruning-trie |
+| ---- | ---------------------: | -----------: |
+| en `co` | 2.5 µs | **1.2 µs** |
+| sv `ko` | 1.5 µs | **1.3 µs** |
 
-| case | wordtree (suggestions) | wordtree (completions) | pruning-trie |
-| ---- | ---------------------: | ---------------------: | -----------: |
-| en `co` | 42.9 µs | 2.5 µs | **1.2 µs** |
-| sv `ko` | 22.3 µs | 1.5 µs | **1.3 µs** |
+> **Thin sample — TODO.** These rest on one prefix per language (`co`, `ko`); two
+> points is weak support for the ~1.2–2× ratio. Widen to a handful of prefixes
+> (re-run `cargo bench -p comparisons`) before leaning on the exact multiplier.
 
-### Finding D — correction latency trails symspell; autocomplete is close to the pruning trie
+### 3.4 The combined call — one structure vs a two-specialist stack
 
-**Spelling correction.** symspell is the clear winner at ~1–8 µs. wordtree (≈24 µs sv,
-≈44 µs en) is **~25–31× slower than symspell** on substitutions; against fst-lev
-(≈70–124 µs) it is **~2.5–3.2× faster** while also correcting transpositions (fst-lev is
-plain Levenshtein). The correction-only `corrections()` call costs essentially the same
-as the combined `suggestions()` (44 vs 44 µs en, 24 vs 24 µs sv): the Damerau walk is the
-dominant cost, and a typo has no exact prefix for the autocomplete sweep to extend.
+`suggestions()` does both jobs in **one call against one mmap**, so its fair rival is
+not any single engine but the **completer + corrector pair** you would otherwise wire
+together — and run *both* on every keystroke to get fuzzy autocomplete as you type.
+On raw latency the combined call loses to a symspell-based stack and beats an
+fst-based one; the axis it actually wins is **footprint and structure count**.
 
-**Autocomplete.** `suggestions()` runs the edit-distance walk on every call, even for a
-clean prefix that only needs completion, so it is the wrong call to race against a pure
-top-k completer. The autocomplete-only `completions()` call is the direct equivalent: it
-skips the walk and lands at **~2.5 µs (en) / ~1.5 µs (sv)** — close to the pruning trie
-(~1.2–1.3 µs): within ~1.2× on sv, ~2× on en. The higher `suggestions()` figure
-(~43 µs en / ~22 µs sv) is the bundled correction work, not the autocomplete.
+| metric (en) | wordtree `suggestions()` | pruning-trie + fst-lev | pruning-trie + symspell |
+| ----------- | -----------------------: | ---------------------: | ----------------------: |
+| structures to build/ship | **1** | 2 | 2 |
+| live heap | **21.1 MiB** | 89.1 MiB | 379.5 MiB |
+| zero-copy mmap | **yes** | partial (fst only) | no |
+| latency / keystroke † | 42.9 µs | ≈123.8 µs | ≈2.6 µs |
+
+sv has the same shape: live heap **4.35 MiB** vs 18.8 (fst stack) / 78.4 (symspell
+stack); `suggestions()` 22.3 µs vs ≈77.4 / ≈2.2.
+
+So against an **fst** stack the single wordtree call is ~3× *faster* and ~4× smaller
+in one mmap; against a **symspell** stack it is ~16× slower on latency but ~18×
+smaller and a single mmap (symspell has no compact serialization, so half that stack
+cannot be mmapped). The combination wins on bytes and on "one file, one call" — not
+on speed.
+
+> † Per-keystroke latency for the stacks = one completer call + one corrector call,
+> since fuzzy-as-you-type runs both. Completer = pruning-trie's measured top-k
+> (~1.2 µs en / ~1.3 µs sv, effectively flat); corrector = the symspell / fst-lev
+> figures from §3.2. The corrector dominates by ~100×, so the sum is an
+> order-of-magnitude figure, not a same-input measurement. Heap figures are the
+> live heaps from §2, summed.
+
+### Finding D — correction trails symspell; autocomplete is close to the pruning trie; the combined call trades speed for one mmap
+
+**Spelling correction (§3.2).** symspell is the clear winner at ~1–8 µs. wordtree's
+`corrections()` (≈24 µs sv, ≈44 µs en) is **~25–31× slower than symspell** on
+substitutions; against fst-lev (≈70–124 µs) it is **~2.5–3.2× faster** while also
+correcting transpositions (fst-lev is plain Levenshtein).
+
+**Autocomplete (§3.3).** The autocomplete-only `completions()` lands at **~2.5 µs
+(en) / ~1.5 µs (sv)** — close to the pruning trie (~1.2–1.3 µs): within ~1.2× on sv,
+~2× on en (on a thin two-prefix sample — see the TODO above).
+
+**The combined call (§3.4).** `suggestions()` runs the edit-distance walk on *every*
+call, even for a clean prefix, so it is structurally slower than either specialist
+alone — that is the price of one call doing both jobs. Its win is not latency but
+delivering fuzzy autocomplete from a single 21 MiB mmap instead of a two-structure
+stack (89–380 MiB).
 
 The split is structural — the same mechanism behind Finding A: `corrections()` walks the
 trie computing one **banded** DP row per visited node (a `2K+1`-cell diagonal window — 3
