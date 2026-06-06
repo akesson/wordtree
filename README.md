@@ -152,7 +152,13 @@ suggestion). On English this trims the structure from ~26.5 MiB (12-byte nodes) 
 
 An edit distance of 1 — counting transposition (swapping two adjacent chars) alongside substitution, insertion and deletion — is sufficient for as-you-type correction.
 
-It is evaluated incrementally as the trie is walked: one small dynamic-programming Damerau-Levenshtein row per node, with a subtree pruned as soon as its whole row is out of range. This handles all four edit kinds uniformly and visits only a tiny fraction of the tree, without a full edit-distance matrix. See [src/editdist/README.md](src/editdist/README.md)
+It is evaluated incrementally as the trie is walked: one small dynamic-programming
+Damerau-Levenshtein row per node — stored as a fixed `2K+1`-cell diagonal *band*
+(3 cells at edit distance `K=1`) rather than the full row — with a subtree pruned as
+soon as its band minimum is out of range. This handles all four edit kinds uniformly
+and visits only a tiny fraction of the tree, without a full edit-distance matrix. The
+band keeps each visited node at `O(K)` work instead of `O(query length)`; results are
+identical to a full-row walk. See [src/editdist/README.md](src/editdist/README.md)
 
 ## Benchmarks
 

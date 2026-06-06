@@ -127,12 +127,15 @@ reproduction in [`tests/correctness.rs`](tests/correctness.rs) of the README's
 own example — `suggestions("aple", …)` now returns "apple".
 
 Mechanism: `dist_search` (`src/search/distsearch.rs`) carries an incremental
-Damerau-Levenshtein row down the trie (`src/editdist/dlrow.rs`): `row[n]` is the
-distance to each node's word and `min(row)` prunes whole subtrees once they are
-out of range, so all four edit kinds are handled uniformly while visiting only
-~2–3% of the tree. (Earlier versions used a 4-window state machine that, driven
-over a *branching* trie, mis-scored mid-word indels and pruned them away — delete
-recall ~6–10%, insert 0%; the row-based walk replaced it.)
+Damerau-Levenshtein row down the trie, stored as a narrow diagonal **band**
+(`src/editdist/dlrow.rs`): the band cell for column `n` is the distance to each
+node's word and the band minimum prunes whole subtrees once they are out of range,
+so all four edit kinds are handled uniformly while visiting only ~2–3% of the tree.
+Banding does not change which nodes are visited or the corrections returned — at
+edit distance 1 the results are bit-identical to a full-row walk — only the per-node
+cost (§3). (Earlier versions used a 4-window state machine that, driven over a
+*branching* trie, mis-scored mid-word indels and pruned them away — delete recall
+~6–10%, insert 0%; the row-based walk replaced it.)
 
 ### Finding B — fst's Levenshtein has no transposition
 
@@ -243,10 +246,10 @@ force is the full DL≤1 scan.
 
 | case | wordtree (suggestions) | wordtree (corrections) | symspell | fst-lev | brute force |
 | ---- | ---------------------: | ---------------------: | -------: | ------: | ----------: |
-| en sub `abxut` | 95.0 µs | 94.0 µs | **1.5 µs** | 126.8 µs | 103.2 ms |
-| en del `abut` | 85.5 µs | 86.1 µs | **8.3 µs** | 128.7 µs | 92.1 ms |
-| sv sub `apxil` | 49.5 µs | 49.2 µs | **1.0 µs** | 78.5 µs | 19.2 ms |
-| sv del `apil` | 45.7 µs | 44.6 µs | **2.4 µs** | 71.1 µs | 17.2 ms |
+| en sub `abxut` | 44.0 µs | 43.8 µs | **1.4 µs** | 122.6 µs | 95.1 ms |
+| en del `abut` | 48.7 µs | 48.3 µs | **8.0 µs** | 124.3 µs | 86.4 ms |
+| sv sub `apxil` | 24.0 µs | 23.5 µs | **0.9 µs** | 76.1 µs | 18.1 ms |
+| sv del `apil` | 26.2 µs | 25.3 µs | **2.4 µs** | 69.9 µs | 16.4 ms |
 
 `corrections()` (correction-only) costs essentially the same as the combined
 `suggestions()` here — the Damerau walk is the cost, and a typo has no exact prefix
@@ -259,31 +262,35 @@ call — the direct counterpart to the pruning trie's top-k.
 
 | case | wordtree (suggestions) | wordtree (completions) | pruning-trie |
 | ---- | ---------------------: | ---------------------: | -----------: |
-| en `co` | 56.4 µs | 2.6 µs | **1.2 µs** |
-| sv `ko` | 29.1 µs | 1.5 µs | **1.3 µs** |
+| en `co` | 42.9 µs | 2.5 µs | **1.2 µs** |
+| sv `ko` | 22.3 µs | 1.5 µs | **1.3 µs** |
 
 ### Finding D — correction latency trails symspell; autocomplete is close to the pruning trie
 
-**Spelling correction.** symspell is the clear winner at ~1–8 µs. wordtree (≈49 µs sv,
-≈95 µs en) is **~50–65× slower than symspell** on substitutions; against fst-lev
-(≈70–129 µs) it is **~1.3–1.6× faster** while also correcting transpositions (fst-lev is
+**Spelling correction.** symspell is the clear winner at ~1–8 µs. wordtree (≈24 µs sv,
+≈44 µs en) is **~25–31× slower than symspell** on substitutions; against fst-lev
+(≈70–124 µs) it is **~2.5–3.2× faster** while also correcting transpositions (fst-lev is
 plain Levenshtein). The correction-only `corrections()` call costs essentially the same
-as the combined `suggestions()` (94 vs 95 µs en, 49 vs 50 µs sv): the Damerau walk is the
+as the combined `suggestions()` (44 vs 44 µs en, 24 vs 24 µs sv): the Damerau walk is the
 dominant cost, and a typo has no exact prefix for the autocomplete sweep to extend.
 
 **Autocomplete.** `suggestions()` runs the edit-distance walk on every call, even for a
 clean prefix that only needs completion, so it is the wrong call to race against a pure
 top-k completer. The autocomplete-only `completions()` call is the direct equivalent: it
-skips the walk and lands at **~2.6 µs (en) / ~1.5 µs (sv)** — close to the pruning trie
-(~1.2–1.3 µs): within ~1.15× on sv, ~2× on en. The higher `suggestions()` figure is the
-bundled correction work, not the autocomplete.
+skips the walk and lands at **~2.5 µs (en) / ~1.5 µs (sv)** — close to the pruning trie
+(~1.2–1.3 µs): within ~1.2× on sv, ~2× on en. The higher `suggestions()` figure
+(~43 µs en / ~22 µs sv) is the bundled correction work, not the autocomplete.
 
 The split is structural — the same mechanism behind Finding A: `corrections()` walks the
-trie one DP row per visited node, whereas symspell does a handful of hash lookups against
-precomputed deletes; `completions()`, like the pruning trie, is just a pruned top-k
-descent. wordtree's small extra cost over the pruning trie is the per-kept-word rank
-lookup into its side `values` table — the price of storing frequency off-node to keep the
-node 8 bytes (§2).
+trie computing one **banded** DP row per visited node (a `2K+1`-cell diagonal window — 3
+cells at K=1 — in [`src/editdist/dlrow.rs`](../src/editdist/dlrow.rs)), whereas symspell
+does a handful of hash lookups against precomputed deletes; `completions()`, like the
+pruning trie, is just a pruned top-k descent. The band makes each visited node cost O(K)
+rather than O(query length), so the walk's cost tracks the number of nodes it visits, not
+how long the query is — longer queries benefit most (the 4–5-char typos above roughly
+halved versus a full-row walk; a 14-char query drops ~80%). wordtree's small extra cost
+over the pruning trie is the per-kept-word rank lookup into its side `values` table — the
+price of storing frequency off-node to keep the node 8 bytes (§2).
 
 ---
 
@@ -297,13 +304,13 @@ On **every individual axis, a specialist beats wordtree**:
   the smallest of the naive key-storing structures. wordtree's bytes buy inline
   frequency + folders + zero-copy mmap.
 - **Spelling correction:** wordtree now corrects all four single-edit kinds
-  (Finding A), but symspell is still ~50–65× faster and returns the *complete*
-  DL≤1 set, whereas wordtree returns a short, frequency-capped list — so for
-  exhaustive spell-checking symspell wins. wordtree is ~1.3–1.6× faster than
+  (Finding A), but symspell is still ~25–31× faster (on substitutions) and returns
+  the *complete* DL≤1 set, whereas wordtree returns a short, frequency-capped list —
+  so for exhaustive spell-checking symspell wins. wordtree is ~2.5–3.2× faster than
   fst-lev, and unlike fst's plain-Levenshtein automaton it also corrects
   transpositions.
 - **Autocomplete:** with the autocomplete-only `completions()` call wordtree is
-  close to pruning_radix_trie (~1.5–2.6 µs; within ~1.15× on sv, ~2× on en). The
+  close to pruning_radix_trie (~1.5–2.5 µs; within ~1.2× on sv, ~2× on en). The
   pruning trie still tracks the frequency oracle better (recall@5 93% vs 85% sv).
   The combined `suggestions()` is far slower here only because it also runs the
   correction walk.

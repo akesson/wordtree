@@ -184,7 +184,13 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
 
         let mut spellings = MaxArr::with_capacity(spellings_cap(chars.len(), &match_type));
         let mut altpaths = MaxArr::with_capacity(3);
-        self.dist_search(&chars, &is_candidate, &mut spellings, &mut altpaths, ledger);
+        self.dist_search::<{ crate::editdist::BAND }, _, _>(
+            &chars,
+            &is_candidate,
+            &mut spellings,
+            &mut altpaths,
+            ledger,
+        );
         suggestions.extend(spellings.into_iter());
 
         if let Some(start) = found.as_ref().and_then(|n| n.children()) {
@@ -224,7 +230,13 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
         // Corrections never seed completions, so the altpath collector is a
         // no-op sink: capacity 0 makes `dist_search` skip altpath bookkeeping.
         let mut altpaths = MaxArr::with_capacity(0);
-        self.dist_search(&chars, &is_candidate, &mut spellings, &mut altpaths, ledger);
+        self.dist_search::<{ crate::editdist::BAND }, _, _>(
+            &chars,
+            &is_candidate,
+            &mut spellings,
+            &mut altpaths,
+            ledger,
+        );
         suggestions.extend(spellings.into_iter());
 
         finish(suggestions, found_index)

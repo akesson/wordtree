@@ -1,3 +1,3 @@
 mod dlrow;
 
-pub use dlrow::{MAX_DIST, base_row, fill_row, row_min};
+pub use dlrow::{BAND, band_dist, base_band, fill_band, row_min};

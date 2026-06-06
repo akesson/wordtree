@@ -1,11 +1,10 @@
 ---
 source: src/search/distsearch.rs
-assertion_line: 202
 expression: "ledger.0.iter().map(|e| e.to_string()).collect::<Vec<String>>().join(\"\\n\")"
 ---
-a <-> abcd, dist(3), min(0), keep: dist too big, search: do search
-a1 <-> abcd, dist(3), min(1), keep: dist too big, search: do search
-a12 <-> abcd, dist(3), min(2), keep: dist too big, search: min dist too big
+a <-> abcd, dist(2), min(0), keep: dist too big, search: do search
+a1 <-> abcd, dist(2), min(1), keep: dist too big, search: do search
+a12 <-> abcd, dist(2), min(2), keep: dist too big, search: min dist too big
 ab <-> abcd, dist(2), min(0), keep: dist too big, search: do search
 ab2 <-> abcd, dist(2), min(1), keep: dist too big, search: do search
 ab23 <-> abcd, dist(2), min(2), keep: dist too big, search: min dist too big
