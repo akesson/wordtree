@@ -322,7 +322,7 @@ impl<'a, V: Deref<Target = [u8]>> NodeRef<'a, V> {
         // Rank purely by percentile (no `Matching`-first pin) — this is the
         // completion ordering; the merged `suggestions()` keeps the pin.
         let mut out: Vec<Suggestion> = extensions.into_iter().collect();
-        out.sort_by(|a, b| b.percentile.cmp(&a.percentile));
+        out.sort_by_key(|s| std::cmp::Reverse(s.percentile));
         out
     }
 
