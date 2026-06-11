@@ -22,7 +22,7 @@ serialised with [`rkyv`](https://rkyv.org) for zero-copy, memory-mapped access. 
 ## Usage
 
 ```rust
-use wordtree::{Builder, TreeFn};
+use wordtree::{Builder, Caps, TreeFn};
 
 // Build a tree from (word, percentile, expr_index) entries.
 let mut builder = Builder::new();
@@ -49,10 +49,18 @@ assert!(suggestions.iter().any(|s| s.expr_index == 1));
 // much cheaper); `corrections()` is spelling correction only (no prefix completion).
 let _completions = tree.completions("ap", |_| true);   // words extending "ap"
 let _corrections = tree.corrections("aple", |_| true); // spelling corrections only
+
+// The default list is deliberately short (good as-you-type behaviour). For
+// exhaustive spell-check — the *complete* set of words within edit distance 1,
+// including when the query is itself a valid word — widen the per-query budget
+// with `Caps`. `Caps::uniform(64)` recalls 100% of the brute-force DL≤1 set.
+let _all = tree.corrections_with("aple", |_| true, Caps::uniform(64));
 ```
 
 `to_tree()` returns a `Tree` that implements `TreeFn`. After `rkyv`-serialising it, the
-same query methods are available zero-copy on `ArchivedTree`.
+same query methods are available zero-copy on `ArchivedTree`. The per-query suggestion
+budget is configurable via `Caps` — see [`comparisons/REPORT.md`](comparisons/REPORT.md)
+§1 (Finding E) for the recall trade-off behind the default.
 
 ## License
 
