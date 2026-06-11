@@ -79,9 +79,9 @@ By Ukkonen's argument the optimal alignment to any cell whose true distance is
 computed exactly**, and the kept corrections, their order, and the set of visited
 nodes are *bit-identical* to a full-row walk. Out-of-range cells may be
 over-estimated, but they stay `> K`, so every keep/prune decision is unchanged.
-Banding only changes the per-node cost — `O(K)` instead of `O(n)` — which is why
-longer queries gain the most (a 14-char fuzzy query is ~80% faster than the
-full-row walk; short typos roughly halve).
+Banding only changes the per-node cost — `O(K)` instead of `O(n)` — so the
+walk's cost tracks the number of nodes visited, not the query length, and the
+saving over a full row grows with query length.
 
 ## Notes
 

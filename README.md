@@ -1,23 +1,41 @@
 # wordtree
 
-> **Status: unmaintained showcase.** This repository is an open-source snapshot of the
-> `wordtree` crate, extracted from a larger private project to accompany an article.
-> It is not actively maintained — issues and pull requests may go unanswered.
+> The `wordtree` crate was extracted from a larger private project to accompany an
+> article.
 
-A compact, cache-friendly trie for storing large word lists with three jobs in mind:
+Everything a word-list UI needs — typo-tolerant as-you-type suggestions, exact
+lookup, and a browsable A–Z index — served from one small file that loads by
+memory-mapping, with no parsing or index-building at startup.
 
-- **Browsable index** — words are grouped into folders (≈100 per folder) for navigation.
-- **Exact lookup** — resolve a word to its expression index in `O(word length)`.
-- **Typo-tolerant autocomplete** — frequency-ranked as-you-type suggestions that combine
-  *autocomplete* (extend a prefix) with *spelling correction* (fix a single edit —
-  substitution, transposition, insertion or deletion — at Damerau-Levenshtein distance
-  ≤ 1). Either half can be requested on its own.
+Type `appl` into a search box backed by wordtree and you get `apple`, `apply`
+and `application` back; mistype it as `aple` and `apple` still tops the list.
+Completions and one-edit spelling fixes come merged in a single frequency-ranked
+list, in tens of microseconds per keystroke against a 638,000-word dictionary.
+That is the crate's job — shipping a large word list inside an app (a dictionary
+or translation app, a keyboard, a command palette) and answering three questions
+about it:
 
-The tree is stored as a width-first array of 8-byte (64-bit) nodes, with the sparse
-per-word data (frequency and expression index) held in compact side tables, and can be
-serialised with [`rkyv`](https://rkyv.org) for zero-copy, memory-mapped access. See the
-[deep dive](#word-tree) below for the data structure and edit-distance design;
-[`comparisons/REPORT.md`](comparisons/REPORT.md) benchmarks it against specialist crates.
+- **What is the user trying to type?** `suggestions()` completes the prefix *and*
+  forgives one mistake — a wrong, missing, extra or swapped character — ranking
+  results by word frequency so common words surface first. `completions()` and
+  `corrections()` give either half alone, and the `Caps` budget turns the short
+  as-you-type list into an exhaustive spell-check when you need every candidate.
+- **What does this word point to?** Every word carries a numeric index you assign
+  (`index_of("apple") → 1`), so a match lands directly in your own table of
+  definitions, translations or products — no second lookup structure.
+- **What's in the list?** Words are grouped into folders of ~100 (`path_of`), so a
+  UI can offer a drill-down index for browsing, not just a search box.
+
+It also ships well: the whole structure — 638k English words in 21 MiB, 113k
+Swedish in 4.4 MiB — serialises with [`rkyv`](https://rkyv.org), and its on-disk
+form *is* its in-memory form. Loading is an mmap; there is nothing to parse or
+rebuild, which matters on phones and other memory-tight, cold-start-sensitive
+targets.
+
+The [deep dive](#word-tree) below explains the data structure and edit-distance
+design; [`comparisons/REPORT.md`](comparisons/REPORT.md) races it honestly
+against the specialist crates (fst, symspell, pruning_radix_trie) — each beats
+wordtree on its own axis; wordtree's case is all three jobs from one file.
 
 ## Usage
 
@@ -60,7 +78,7 @@ let _all = tree.corrections_with("aple", |_| true, Caps::uniform(64));
 `to_tree()` returns a `Tree` that implements `TreeFn`. After `rkyv`-serialising it, the
 same query methods are available zero-copy on `ArchivedTree`. The per-query suggestion
 budget is configurable via `Caps` — see [`comparisons/REPORT.md`](comparisons/REPORT.md)
-§1 (Finding E) for the recall trade-off behind the default.
+§1 for the recall trade-off behind the default.
 
 ## License
 
@@ -83,21 +101,16 @@ The bundled benchmark and test word lists are derived from PanLex and Wiktionary
 
 - [Word Tree](#word-tree)
   - [Uses](#uses)
-  - [Languages](#languages)
   - [Node layout](#node-layout)
   - [Edit distance](#edit-distance)
   - [Benchmarks](#benchmarks)
 
 # Word Tree
 
-This is a custom trie for storing words as a tree of chars.
-It is heavily size optimized and uses an array of Nodes.
-
-A node is followed by all its siblings, so the tree is stored in a width-first manner.
-
-The tree has some nodes marked as folders in a manner that,
-if possible, a maximum of X words is stored per folder.
-X is normally 100.
+A custom trie that stores words as a tree of chars, size-optimised into a flat
+array of fixed-width nodes. Each node is followed by all its siblings, so the
+tree is laid out width-first. Some nodes are marked as folders such that, where
+possible, at most ~100 words land in each folder.
 
 ## Uses
 
@@ -105,18 +118,8 @@ The three jobs above map onto the structure: folder-marked nodes drive the brows
 index, the char-path to a node yields its expression index, and a frequency-ranked walk
 produces typo-tolerant autocomplete.
 
-Expressions containing spaces are normally excluded — they are never suggested, and are
-kept only to translate other non-spaced expressions.
-
-## Languages
-
-Alphabetic languages have in general up to 40 different characters plus some special ones (-, +, etc).
-It can be thought of as up to 100 different chars.
-
-As-you-type autocomplete that tolerates mis-spellings is of value.
-
-Logographic languages (chinese, etc) have thousands of frequently used logograms and in total tens of thousands.
-These languages are often used with special entry forms. They are currently not the focus of the word-tree.
+The design targets alphabetic scripts (tens of distinct characters per language);
+logographic scripts (thousands of distinct characters) are out of scope.
 
 ## Node layout
 
@@ -139,9 +142,10 @@ inline because it is read on *every* node during the walk.
 
 ### Per-word side tables
 
-A word's own `percentile` (frequency, 0–1000) and 24-bit `expr_index` only exist on the
-~28% of nodes that terminate a word, so storing them inline would waste 5 bytes on every
-internal node. Instead they live in three side arrays, also part of the zero-copy mmap:
+A word's own `percentile` (frequency, 0–1000) and 24-bit `expr_index` only exist on
+nodes that terminate a word — about a quarter of all nodes — so storing them inline
+would waste 5 bytes on every internal node. Instead they live in three side arrays,
+also part of the zero-copy mmap:
 
 | table        | size                          | role                                                      |
 | ------------ | ----------------------------- | --------------------------------------------------------- |
@@ -152,9 +156,9 @@ internal node. Instead they live in three side arrays, also part of the zero-cop
 A word node at position `i` finds its value at `values[rank(i)]` — the number of word
 nodes before it. The bit probe is on the hot browse/descent path; the rank query only
 fires when a per-word value is actually consumed (an exact `index_of`, or a kept
-suggestion). On English this trims the structure from ~26.5 MiB (12-byte nodes) to
-~21.1 MiB (8-byte nodes + side tables), a ~20% reduction with no loss of function — see
-[`comparisons/REPORT.md`](comparisons/REPORT.md) §2.
+suggestion). Storing the pair inline would need 12-byte nodes (~26.5 MiB for English);
+the 8-byte nodes plus side tables come to ~21.1 MiB, ~20% smaller with no loss of
+function — see [`comparisons/REPORT.md`](comparisons/REPORT.md) §2.
 
 ## Edit distance
 
@@ -164,13 +168,13 @@ It is evaluated incrementally as the trie is walked: one small dynamic-programmi
 Damerau-Levenshtein row per node — stored as a fixed `2K+1`-cell diagonal *band*
 (3 cells at edit distance `K=1`) rather than the full row — with a subtree pruned as
 soon as its band minimum is out of range. This handles all four edit kinds uniformly
-and visits only a tiny fraction of the tree, without a full edit-distance matrix. The
+and visits well under 1% of the tree, without a full edit-distance matrix. The
 band keeps each visited node at `O(K)` work instead of `O(query length)`; results are
 identical to a full-row walk. See [src/editdist/README.md](src/editdist/README.md)
 
 ## Benchmarks
 
-Building the full tree from the bundled TSV takes roughly 405 ms (English, ~638k words)
-and 68 ms (Swedish, ~113k words) on an Apple M4 Pro. For comparative latency, size and
+Building the full tree from the bundled TSV takes roughly 435 ms (English, ~638k words)
+and 71 ms (Swedish, ~113k words) on an Apple M4 Pro. For comparative latency, size and
 suggestion-quality benchmarks against specialist crates (fst, symspell,
 pruning_radix_trie, boomphf), see [`comparisons/REPORT.md`](comparisons/REPORT.md).
